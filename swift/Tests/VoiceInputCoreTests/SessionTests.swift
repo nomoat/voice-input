@@ -240,13 +240,14 @@ struct SessionTests {
         #expect(await listDictations(rig.store, now: rig.clock.now() + VoiceJournal.discardedKeepMs + 1).isEmpty)
     }
 
-    @Test func interruptionPausesAndResumes() async throws {
+    @Test func anInterruptedHandsFreeSessionPausesAndResumes() async throws {
         let rig = Rig()
         let session = VoiceSession(options: rig.options())
         await session.start(mode: .handsFree)
         rig.frames(2)
         rig.sink?.interrupted()
         #expect(session.state.phase == .paused)
+        #expect(session.state.stoppedBy == nil)
         rig.frames(3)
         #expect(session.state.elapsedMs == 200)
         rig.sink?.resumed()
@@ -255,7 +256,48 @@ struct SessionTests {
         #expect(session.state.elapsedMs == 300)
         session.finish()
         #expect(session.state.phase == .pending)
+        #expect(session.state.mode == .handsFree)
+        #expect(session.state.stoppedBy == nil)
         session.abandon()
+    }
+
+    @Test(arguments: [VoiceMode.hold, .undecided])
+    func anInterruptedHoldFinishesAsInterrupted(_ mode: VoiceMode) async throws {
+        let rig = Rig()
+        let session = VoiceSession(options: rig.options())
+        await session.start(mode: mode)
+        await rig.settle(session)
+        rig.socket.onOpen?()
+        rig.socket.server(.ready(maxMs: 1_200_000))
+        rig.frames(5)
+        rig.sink?.interrupted()
+        #expect(session.state.phase == .finishing)
+        #expect(session.state.stoppedBy == .interrupted)
+        #expect(session.state.mode == mode)
+        #expect(rig.capture.stopped)
+        #expect(rig.socket.json.last?["type"] as? String == "finish")
+        #expect(rig.socket.json.last?["endMs"] as? Int == 500)
+        rig.frames(3)
+        #expect(session.state.elapsedMs == 500)
+        session.setMode(.handsFree)
+        session.setMode(.hold)
+        #expect(session.state.mode == mode, "a late release does not relabel a finished hold")
+        rig.sink?.resumed()
+        #expect(session.state.phase == .finishing)
+        rig.socket.server(.commit(seg: 0, text: "held words", startMs: 0, endMs: 500))
+        rig.socket.server(.done(nextSeg: 1))
+        #expect(await session.result?.text == "held words")
+        #expect(session.state.stoppedBy == .interrupted)
+    }
+
+    @Test func aHoldWithNothingRecordedEndsInterruptedAndEmpty() async throws {
+        let rig = Rig()
+        let session = VoiceSession(options: rig.options())
+        await session.start(mode: .hold)
+        rig.sink?.interrupted()
+        #expect(session.state.phase == .done)
+        #expect(session.state.stoppedBy == .interrupted)
+        #expect(await session.result == VoiceResult(session: session.id, text: ""))
     }
 
     @Test func subscribersSeeEachChangeOnce() async throws {

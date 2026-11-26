@@ -10,12 +10,14 @@ public struct VoiceTextInfo: Sendable, Equatable {
     public var tidied: Bool
     public var session: String
     public var mode: VoiceMode
+    public var stoppedBy: VoiceStop?
 
-    public init(raw: String, tidied: Bool, session: String, mode: VoiceMode) {
+    public init(raw: String, tidied: Bool, session: String, mode: VoiceMode, stoppedBy: VoiceStop? = nil) {
         self.raw = raw
         self.tidied = tidied
         self.session = session
         self.mode = mode
+        self.stoppedBy = stoppedBy
     }
 }
 
@@ -193,8 +195,8 @@ public final class VoiceInputController {
         return session
     }
 
-    public func finish() {
-        session?.finish()
+    public func finish(stoppedBy: VoiceStop? = nil) {
+        session?.finish(stoppedBy: stoppedBy)
     }
 
     public func cancel() {
@@ -261,7 +263,7 @@ public final class VoiceInputController {
         }
         delivering = true
         do {
-            try await deliver(session, result.text, mode: state.mode)
+            try await deliver(session, result.text, mode: state.mode, stoppedBy: state.stoppedBy)
         } catch {
             guard self.session === session else { return }
             delivering = false
@@ -273,11 +275,11 @@ public final class VoiceInputController {
         switch state.stoppedBy {
         case .limit: showNotice(.limit, autoCloseMs: 4000)
         case .silence: showNotice(.silence, autoCloseMs: 4000)
-        case nil: close()
+        case .interrupted, nil: close()
         }
     }
 
-    private func deliver(_ session: VoiceSession, _ text: String, mode: VoiceMode) async throws {
+    private func deliver(_ session: VoiceSession, _ text: String, mode: VoiceMode, stoppedBy: VoiceStop?) async throws {
         let c = configuration
         var out = text
         var tidied = false
@@ -292,7 +294,7 @@ public final class VoiceInputController {
             }
         }
         guard self.session === session else { return }
-        try await c.onText(out, VoiceTextInfo(raw: text, tidied: tidied, session: session.id, mode: mode))
+        try await c.onText(out, VoiceTextInfo(raw: text, tidied: tidied, session: session.id, mode: mode, stoppedBy: stoppedBy))
         await session.markInserted()
     }
 
@@ -344,7 +346,7 @@ public final class VoiceInputController {
     private func enteredBackground() {
         guard configuration.finishHoldInBackground, let session, session.state.isActive, session.state.mode != .handsFree else { return }
         armCancel(false)
-        session.finish()
+        session.finish(stoppedBy: .interrupted)
     }
 
     private func terminating() {

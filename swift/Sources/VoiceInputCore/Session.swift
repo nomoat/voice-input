@@ -18,7 +18,7 @@ public enum VoiceFailure: String, Sendable {
 }
 
 public enum VoiceStop: String, Sendable {
-    case limit, silence
+    case limit, silence, interrupted
 }
 
 public struct VoiceState: Sendable, Equatable {
@@ -204,6 +204,10 @@ public final class VoiceSession {
             samples: { [weak self] pcm in self?.samples(pcm) },
             interrupted: { [weak self] in
                 guard let self, self.state.phase == .recording else { return }
+                if self.state.mode == .hold || self.state.mode == .undecided {
+                    self.finish(stoppedBy: .interrupted)
+                    return
+                }
                 self.update {
                     $0.phase = .paused
                     $0.level = 0
@@ -287,7 +291,8 @@ public final class VoiceSession {
     }
 
     public func setMode(_ mode: VoiceMode) {
-        if state.mode != mode { update { $0.mode = mode } }
+        guard state.isActive, !stopping, state.mode != mode else { return }
+        update { $0.mode = mode }
     }
 
     public func finish(stoppedBy: VoiceStop? = nil) {

@@ -109,8 +109,14 @@ The endpoint closure runs for every connection attempt; throw
 `VoiceEndpointError.unauthorized` when the host's credential is refused (three
 in a row fail the session), or `VoiceEndpointError.refused` when the host will
 not connect this dictation at all (the session fails at once and keeps the
-dictation on the device for the recovery banner). `VoiceTextInfo.mode` says whether the dictation
-ended as a hold or hands-free, for hosts that send on release.
+dictation on the device for the recovery banner). `VoiceTextInfo.mode` (`hold`, `handsFree`, `restore`,
+or `undecided` for a press the system ended before it became a hold) and
+`stoppedBy` (`interrupted`, `limit`, `silence`) say how a dictation ended. A
+host that sends on release sends only for `mode == .hold` with no `stoppedBy`
+and inserts everything else. A hold ends as `interrupted` when the system
+cancels the touch, the app goes to the background or an audio interruption
+begins; it shows no notice. Hands-free pauses on an interruption and resumes
+after it.
 `VoiceInputController.recoverable` lists the target's dictations that were not
 inserted; `VoiceRecoveryBanner(controller:)` shows the first one and takes no
 room in a stack when there is none. Strings default
@@ -118,8 +124,7 @@ to `VoiceStrings.current` (Chinese for a `zh` locale, else English); pass
 `englishVoiceStrings`, `chineseVoiceStrings` or your own `VoiceStrings`.
 
 Hosts declare `NSMicrophoneUsageDescription` and, so that hands-free keeps
-recording in the background, `UIBackgroundModes` = `audio`. A hold finishes
-when the app goes to the background.
+recording in the background, `UIBackgroundModes` = `audio`.
 
 ```sh
 swift test            # macOS: conformance/*.json, file store, session scenarios

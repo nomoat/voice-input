@@ -164,7 +164,7 @@ final class VoicePress {
         track = nil
         armed = false
         controller.armCancel(false)
-        controller.finish()
+        controller.finish(stoppedBy: .interrupted)
     }
 
     func reset() {
