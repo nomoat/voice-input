@@ -93,8 +93,9 @@ build: copy the directory, `include(":voiceinput")` in the host's
   pauses the session).
 - `com.nomoat.voiceinput.ui`: `rememberVoiceInputController`, `VoiceButton`,
   `Modifier.voiceInputGesture`, `trackVoicePress` (for a host's own gesture
-  code), `VoiceLivePanel`, `VoiceRecoveryBanner`, `englishVoiceStrings` and
-  `chineseVoiceStrings`.
+  code), `VoiceLivePanel`, `VoiceRecoveryBanner` and `englishVoiceStrings`.
+  `chineseVoiceStrings` and `voiceStrings(locale)` are in `ui/ChineseStrings.kt`,
+  which a host that ships only English can leave out.
 
 ```kotlin
 val voice = rememberVoiceInputController(
