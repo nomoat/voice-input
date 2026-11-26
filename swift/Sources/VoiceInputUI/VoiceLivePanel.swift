@@ -16,6 +16,8 @@ public struct VoiceLivePanel: View {
     @State private var headerHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
     @State private var containerLimit: CGFloat = 0
+    @State private var hintHeight: CGFloat = 0
+    @State private var hintFullHeight: CGFloat = 0
     @State private var spoken = ""
 
     private nonisolated static let bottomID = "voice-input-bottom"
@@ -198,14 +200,28 @@ public struct VoiceLivePanel: View {
         HStack(spacing: 8) {
             if recording && hold {
                 Text(armed ? strings.releaseToCancel : strings.holdHint)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if (recording || phase == .paused) && !hold {
-                Text(state.mode == .undecided ? "" : strings.tapHint)
+                let hint = state.mode == .undecided ? "" : strings.tapHint
+                Text(hint)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(alignment: .topLeading) {
+                        Text(hint)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .hidden()
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { hintFullHeight = $0 }
+                    }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { hintHeight = $0 }
+                    .opacity(hintFits ? 1 : 0)
+                    .accessibilityHidden(!hintFits)
                 VoicePanelButton(title: strings.cancel, primary: false) { controller.cancel() }
+                    .layoutPriority(1)
                 VoicePanelButton(title: strings.done, primary: true) { controller.finish() }
+                    .layoutPriority(1)
             }
             if !recording && phase != .paused {
                 Spacer(minLength: 0)
@@ -223,6 +239,10 @@ public struct VoiceLivePanel: View {
         .overlay(alignment: .top) {
             if !armed { Divider() }
         }
+    }
+
+    private var hintFits: Bool {
+        hintFullHeight <= hintHeight + 0.5
     }
 
     private func announce(_ old: String, _ new: String) {

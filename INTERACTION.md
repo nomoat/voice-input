@@ -48,7 +48,8 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
   `Connecting… your voice is being recorded`, `Offline · still recording`,
   `Paused by another app`, `Finishing…`, `Tidying…`.
 - Footer: hold mode shows `Release to insert · Slide up to cancel`;
-  hands-free shows `Cancel` and `Done`.
+  hands-free shows `Cancel` and `Done`, with the tap hint beside them when it
+  fits in two lines (otherwise the hint is left out; the buttons keep their size).
 - Read only while recording. Editing happens in the host's field afterwards.
 - Screen readers hear committed text, not interim text.
 
