@@ -71,10 +71,54 @@ import { VoiceButton, chineseVoiceStrings } from '@nomoat/voice-input/react';
 dictations for a target. `@nomoat/voice-input/client` has the framework-free
 `VoiceSession`, IndexedDB store and microphone capture.
 
-## Swift
+## Swift (iOS 17+, macOS 14+)
 
-`Package.swift` at the root: `VoiceInputCore` (session, journal, file store,
-capture, transport) and `VoiceInputUI` (SwiftUI button and live panel).
+`Package.swift` at the root has two products:
+
+- `VoiceInputCore`: protocol types, text rules, journal, `FileVoiceStore`
+  (Application Support/VoiceInput, frames in 300-frame chunk files),
+  `VoiceSession`, `MicrophoneCapture` (AVAudioEngine → 16 kHz mono Int16) and
+  `URLSessionVoiceSocket`.
+- `VoiceInputUI`: `VoiceInputController`, `VoiceButton`, `VoiceLivePanel`,
+  `VoiceRecoveryBanner`, the built-in strings and `UITextView.insertVoiceText`.
+
+```swift
+import VoiceInputCore
+import VoiceInputUI
+
+@State private var voice = VoiceInputController(configuration: .init(
+    endpoint: {
+        let ticket = try await api.voiceTicket()            // a fresh credential per connection
+        return VoiceEndpoint(url: ticket.url, token: ticket.token)
+    },
+    languages: VoiceInputController.preferredLanguages(),
+    target: "doc:\(docID)",
+    surface: "document",
+    onText: { text, info in textView.insertVoiceText(text) },
+    tidy: { text in try await api.tidy(text) }              // optional; texts of 80+ characters
+))
+
+VStack {
+    VoiceRecoveryBanner(controller: voice)
+    VoiceLivePanel(controller: voice)                         // above the composer
+    HStack { composer; VoiceButton(controller: voice) }
+}
+```
+
+The endpoint closure runs for every connection attempt; throw
+`VoiceEndpointError.unauthorized` when the host's credential is refused (three
+in a row fail the session). `VoiceTextInfo.mode` says whether the dictation
+ended as a hold or hands-free, for hosts that send on release. Strings default
+to `VoiceStrings.current` (Chinese for a `zh` locale, else English); pass
+`englishVoiceStrings`, `chineseVoiceStrings` or your own `VoiceStrings`.
+
+Hosts declare `NSMicrophoneUsageDescription` and, so that hands-free keeps
+recording in the background, `UIBackgroundModes` = `audio`. A hold finishes
+when the app goes to the background.
+
+```sh
+swift test            # macOS: conformance/*.json, file store, session scenarios
+```
 
 ## Android
 
