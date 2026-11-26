@@ -689,6 +689,14 @@ public final class VoiceSession {
     }
 
     private func settle(_ value: VoiceResult?) {
+        let previous = io
+        io = Task {
+            await previous?.value
+            self.resolve(value)
+        }
+    }
+
+    private func resolve(_ value: VoiceResult?) {
         guard outcome == nil else { return }
         outcome = .some(value)
         let pending = waiters
