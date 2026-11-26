@@ -73,6 +73,8 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
   never inserted shows a banner on its target screen:
   `Unfinished dictation · 3 min · Restore / Discard`. Restore sends the
   remaining spooled audio through the relay, without the microphone.
+  At accessibility text sizes (Swift) the title takes the full width and the
+  two buttons sit below it, one above the other.
 - Inserted dictations stay on the device for 7 days, discarded ones for
   24 hours, abandoned ones for 30 days.
 

@@ -13,6 +13,7 @@ public struct VoiceRecoveryBanner: View {
     @State private var items: [StoredDictation] = []
     @State private var busy: String?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(
         target: String,
@@ -66,28 +67,53 @@ public struct VoiceRecoveryBanner: View {
 
     private func banner(_ item: StoredDictation) -> some View {
         let preview = item.text.count > 80 ? String(item.text.prefix(80)) + "…" : item.text
-        return HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(strings.unfinished(voiceMinutes(item.durationMs))).fontWeight(.semibold)
-                if !preview.isEmpty {
-                    Text(preview).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        return Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 8) {
+                    summary(item, preview: preview, wraps: true)
+                    restoreButton(item)
+                    discardButton(item)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(spacing: 8) {
+                    summary(item, preview: preview, wraps: false)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    restoreButton(item)
+                    discardButton(item)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Button(busy != nil ? strings.finishing : item.status == .complete ? strings.insert : strings.restore) {
-                Task { await restore(item) }
-            }
-            .disabled(busy != nil)
-            Button(strings.discard) {
-                Task { await discard(item) }
-            }
-            .disabled(busy != nil)
         }
         .font(.footnote)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.gray.opacity(0.28)))
         .accessibilityElement(children: .contain)
+    }
+
+    private func summary(_ item: StoredDictation, preview: String, wraps: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(strings.unfinished(voiceMinutes(item.durationMs))).fontWeight(.semibold)
+                .fixedSize(horizontal: false, vertical: wraps)
+            if !preview.isEmpty {
+                Text(preview).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            }
+        }
+    }
+
+    private func restoreButton(_ item: StoredDictation) -> some View {
+        Button(busy != nil ? strings.finishing : item.status == .complete ? strings.insert : strings.restore) {
+            Task { await restore(item) }
+        }
+        .disabled(busy != nil)
+    }
+
+    private func discardButton(_ item: StoredDictation) -> some View {
+        Button(strings.discard) {
+            Task { await discard(item) }
+        }
+        .disabled(busy != nil)
     }
 
     private func restore(_ item: StoredDictation) async {
