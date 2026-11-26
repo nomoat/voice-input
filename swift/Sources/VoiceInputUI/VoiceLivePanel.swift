@@ -1,0 +1,275 @@
+import SwiftUI
+import VoiceInputCore
+#if canImport(UIKit)
+import UIKit
+#endif
+
+public struct VoiceLivePanel: View {
+    private let controller: VoiceInputController
+    private let strings: VoiceStrings
+    private let maxHeight: CGFloat?
+    private let maxWidth: CGFloat
+
+    @State private var follow = true
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+    @State private var headerHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
+    @State private var containerLimit: CGFloat = 0
+    @State private var spoken = ""
+
+    private nonisolated static let bottomID = "voice-input-bottom"
+    private nonisolated static let space = "voice-input-scroll"
+
+    public init(controller: VoiceInputController, strings: VoiceStrings = .current, maxHeight: CGFloat? = nil, maxWidth: CGFloat = 560) {
+        self.controller = controller
+        self.strings = strings
+        self.maxHeight = maxHeight
+        self.maxWidth = maxWidth
+    }
+
+    public var body: some View {
+        let view = controller.view
+        if view.open, let state = view.state {
+            panel(view, state)
+                .frame(maxWidth: maxWidth)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
+    private var phone: Bool {
+        #if canImport(UIKit) && !os(watchOS)
+        UIDevice.current.userInterfaceIdiom == .phone
+        #else
+        false
+        #endif
+    }
+
+    private var panelLimit: CGFloat {
+        if let maxHeight { return maxHeight }
+        if phone { return containerLimit > 0 ? max(120, containerLimit) : 320 }
+        return 320
+    }
+
+    private func status(_ view: VoiceInputView, _ state: VoiceState) -> String {
+        if view.tidying { return strings.tidying }
+        switch state.phase {
+        case .paused: return strings.paused
+        case .finishing, .done: return strings.finishing
+        case .pending: return strings.savedOffline
+        default: break
+        }
+        if state.connection == .offline { return strings.offline }
+        if state.connection == .connecting { return strings.connecting }
+        if state.mode == .handsFree && state.silenceMs >= 60_000 { return strings.stillListening }
+        return strings.listening
+    }
+
+    private func notice(_ view: VoiceInputView) -> String? {
+        switch view.notice {
+        case .empty: strings.emptyResult
+        case .microphone: strings.microphoneDenied
+        case .unauthorized: strings.signInAgain
+        case .rejected: strings.rejected
+        case .limit: strings.stoppedAtLimit
+        case .silence: strings.stoppedBySilence
+        case .pending, nil: nil
+        }
+    }
+
+    @ViewBuilder
+    private func panel(_ view: VoiceInputView, _ state: VoiceState) -> some View {
+        let phase = state.phase
+        let recording = phase == .recording || phase == .starting
+        let hold = state.mode == .hold
+        let armed = view.cancelArmed && hold
+        let muted: Color = armed ? Color.white.opacity(0.8) : Color.secondary
+        let noticeText = notice(view)
+        let textLimit = max(44, panelLimit - headerHeight - footerHeight)
+
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                VoiceLevelMeter(level: state.level, live: recording && !armed)
+                Text(armed ? strings.releaseToCancel : status(view, state))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if state.remainingMs <= 60_000 && recording { Text(strings.minuteLeft) }
+                Text(voiceClock(state.elapsedMs)).monospacedDigit()
+            }
+            .font(.caption)
+            .foregroundStyle(muted)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        transcript(state, notice: noticeText, armed: armed)
+                        if let noticeText, !(state.committed.isEmpty && state.interim.isEmpty) {
+                            Text(noticeText).font(.footnote).foregroundStyle(muted)
+                        }
+                        Color.clear.frame(height: 1).id(Self.bottomID)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 4)
+                    .padding(.bottom, 10)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { frame in
+                        let grew = abs(frame.height - contentHeight) > 0.5
+                        contentHeight = frame.height
+                        let gap = frame.maxY - viewportHeight
+                        if gap < 24 {
+                            if !follow { follow = true }
+                        } else if !grew && follow {
+                            follow = false
+                        }
+                        if grew && follow { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+                    }
+                }
+                .coordinateSpace(.named(Self.space))
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: min(max(44, contentHeight), textLimit))
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
+                .overlay(alignment: .bottomTrailing) {
+                    if !follow {
+                        Button {
+                            follow = true
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+                        } label: {
+                            Text("\(strings.latest) ↓")
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(.background, in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color.gray.opacity(0.28)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 12)
+                        .padding(.bottom, 6)
+                    }
+                }
+            }
+
+            footer(view, state, recording: recording, hold: hold, armed: armed, muted: muted, hasNotice: noticeText != nil)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
+        }
+        .foregroundStyle(armed ? Color.white : Color.primary)
+        .background(armed ? AnyShapeStyle(Color.voiceAccent) : AnyShapeStyle(.background))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.gray.opacity(0.28)))
+        .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+        .animation(.easeOut(duration: 0.12), value: armed)
+        .background(alignment: .bottom) {
+            Color.clear
+                .containerRelativeFrame(.vertical) { length, _ in length * 0.4 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { containerLimit = $0 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(strings.voiceInput)
+        .onChange(of: state.committed) { old, new in announce(old, new) }
+    }
+
+    private func transcript(_ state: VoiceState, notice: String?, armed: Bool) -> some View {
+        let empty = state.committed.isEmpty && state.interim.isEmpty
+        var text = AttributedString(empty ? (notice ?? "…") : state.committed)
+        if empty {
+            text.foregroundColor = armed ? Color.white.opacity(0.75) : Color.secondary
+        } else {
+            var interim = AttributedString(state.interim)
+            interim.foregroundColor = armed ? Color.white.opacity(0.75) : Color.secondary
+            text.append(interim)
+        }
+        return Text(text)
+            .font(.body)
+            .lineSpacing(4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.disabled)
+            .accessibilityLabel(empty ? (notice ?? "") : state.committed)
+    }
+
+    @ViewBuilder
+    private func footer(_ view: VoiceInputView, _ state: VoiceState, recording: Bool, hold: Bool, armed: Bool, muted: Color, hasNotice: Bool) -> some View {
+        let phase = state.phase
+        HStack(spacing: 8) {
+            if recording && hold {
+                Text(armed ? strings.releaseToCancel : strings.holdHint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if (recording || phase == .paused) && !hold {
+                Text(state.mode == .undecided ? "" : strings.tapHint)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                VoicePanelButton(title: strings.cancel, primary: false) { controller.cancel() }
+                VoicePanelButton(title: strings.done, primary: true) { controller.finish() }
+            }
+            if !recording && phase != .paused {
+                Spacer(minLength: 0)
+                VoicePanelButton(title: strings.close, primary: false) {
+                    if phase == .pending || hasNotice { controller.close() } else { controller.cancel() }
+                }
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(muted)
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .overlay(alignment: .top) {
+            if !armed { Divider() }
+        }
+    }
+
+    private func announce(_ old: String, _ new: String) {
+        guard new.count > old.count, new.hasPrefix(old) else { return }
+        let added = String(new.dropFirst(old.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !added.isEmpty, added != spoken else { return }
+        spoken = added
+        AccessibilityNotification.Announcement(added).post()
+    }
+}
+
+struct VoicePanelButton: View {
+    let title: String
+    let primary: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.footnote.weight(primary ? .semibold : .regular))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .foregroundStyle(primary ? AnyShapeStyle(.background) : AnyShapeStyle(.primary))
+                .background(primary ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.clear), in: Capsule())
+                .overlay(Capsule().strokeBorder(primary ? Color.clear : Color.gray.opacity(0.28)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct VoiceLevelMeter: View {
+    let level: Double
+    let live: Bool
+
+    private static let bars: [Double] = [0.55, 0.85, 1, 0.7, 0.45]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 2) {
+            ForEach(Self.bars.indices, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(live ? Color.voiceAccent : Color.secondary)
+                    .frame(width: 3, height: max(3, (14 * min(1, level * 1.4) * Self.bars[i]).rounded()))
+            }
+        }
+        .frame(height: 14)
+        .animation(.linear(duration: 0.09), value: level)
+        .accessibilityHidden(true)
+    }
+}

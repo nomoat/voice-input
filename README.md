@@ -71,10 +71,64 @@ import { VoiceButton, chineseVoiceStrings } from '@nomoat/voice-input/react';
 dictations for a target. `@nomoat/voice-input/client` has the framework-free
 `VoiceSession`, IndexedDB store and microphone capture.
 
-## Swift
+## Swift (iOS 17+, macOS 14+)
 
-`Package.swift` at the root: `VoiceInputCore` (session, journal, file store,
-capture, transport) and `VoiceInputUI` (SwiftUI button and live panel).
+`Package.swift` at the root has two products:
+
+- `VoiceInputCore`: protocol types, text rules, journal, `FileVoiceStore`
+  (Application Support/VoiceInput, frames in 300-frame chunk files),
+  `VoiceSession`, `MicrophoneCapture` (AVAudioEngine → 16 kHz mono Int16) and
+  `URLSessionVoiceSocket`.
+- `VoiceInputUI`: `VoiceInputController`, `VoiceButton`, `VoiceLivePanel`,
+  `VoiceRecoveryBanner`, the built-in strings and `UITextView.insertVoiceText`.
+
+```swift
+import VoiceInputCore
+import VoiceInputUI
+
+@State private var voice = VoiceInputController(configuration: .init(
+    endpoint: {
+        let ticket = try await api.voiceTicket()            // a fresh credential per connection
+        return VoiceEndpoint(url: ticket.url, token: ticket.token)
+    },
+    languages: VoiceInputController.preferredLanguages(),
+    target: "doc:\(docID)",
+    surface: "document",
+    onText: { text, info in textView.insertVoiceText(text) },
+    tidy: { text in try await api.tidy(text) }              // optional; texts of 80+ characters
+))
+
+VStack {
+    VoiceRecoveryBanner(controller: voice)
+    VoiceLivePanel(controller: voice)                         // above the composer
+    HStack { composer; VoiceButton(controller: voice) }
+}
+```
+
+The endpoint closure runs for every connection attempt; throw
+`VoiceEndpointError.unauthorized` when the host's credential is refused (three
+in a row fail the session), or `VoiceEndpointError.refused` when the host will
+not connect this dictation at all (the session fails at once and keeps the
+dictation on the device for the recovery banner). `VoiceTextInfo.mode` (`hold`, `handsFree`, `restore`,
+or `undecided` for a press the system ended before it became a hold) and
+`stoppedBy` (`interrupted`, `limit`, `silence`) say how a dictation ended. A
+host that sends on release sends only for `mode == .hold` with no `stoppedBy`
+and inserts everything else. A hold ends as `interrupted` when the system
+cancels the touch, the app goes to the background or an audio interruption
+begins; it shows no notice. Hands-free pauses on an interruption and resumes
+after it.
+`VoiceInputController.recoverable` lists the target's dictations that were not
+inserted; `VoiceRecoveryBanner(controller:)` shows the first one and takes no
+room in a stack when there is none. Strings default
+to `VoiceStrings.current` (Chinese for a `zh` locale, else English); pass
+`englishVoiceStrings`, `chineseVoiceStrings` or your own `VoiceStrings`.
+
+Hosts declare `NSMicrophoneUsageDescription` and, so that hands-free keeps
+recording in the background, `UIBackgroundModes` = `audio`.
+
+```sh
+swift test            # macOS: conformance/*.json, file store, session scenarios
+```
 
 ## Android
 
