@@ -26,7 +26,7 @@ public struct VoiceStrings: Sendable {
     public var signInAgain: String
     public var rejected: String
     public var emptyResult: String
-    public var unfinished: @Sendable (String) -> String
+    public var unfinished: @Sendable (Int) -> String
     public var restore: String
     public var insert: String
     public var discard: String
@@ -38,7 +38,7 @@ public struct VoiceStrings: Sendable {
         paused: String, finishing: String, tidying: String, holdHint: String, releaseToCancel: String, tapHint: String,
         done: String, cancel: String, close: String, latest: String, stillListening: String, minuteLeft: String,
         stoppedAtLimit: String, stoppedBySilence: String, savedOffline: String, microphoneDenied: String,
-        signInAgain: String, rejected: String, emptyResult: String, unfinished: @escaping @Sendable (String) -> String,
+        signInAgain: String, rejected: String, emptyResult: String, unfinished: @escaping @Sendable (Int) -> String,
         restore: String, insert: String, discard: String, showOriginal: String, showTidied: String
     ) {
         self.voiceInput = voiceInput
@@ -100,7 +100,7 @@ public struct VoiceStrings: Sendable {
         signInAgain: "Sign in again to finish this dictation. It is saved on this device.",
         rejected: "Voice input is not available right now. Your dictation is saved on this device.",
         emptyResult: "Didn’t catch that.",
-        unfinished: { minutes in "Unfinished dictation · \(minutes)" },
+        unfinished: { minutes in "Unfinished dictation · \(minutes) min" },
         restore: "Restore",
         insert: "Insert",
         discard: "Discard",
@@ -134,7 +134,7 @@ public struct VoiceStrings: Sendable {
         signInAgain: "请重新登录以完成这段口述。它已保存在本设备上。",
         rejected: "语音输入暂时不可用。这段口述已保存在本设备上。",
         emptyResult: "没有听清。",
-        unfinished: { minutes in "未完成的口述 · \(minutes)" },
+        unfinished: { minutes in "未完成的口述 · \(minutes) 分钟" },
         restore: "恢复",
         insert: "插入",
         discard: "丢弃",
@@ -161,6 +161,6 @@ public func voiceClock(_ ms: Int) -> String {
     return String(format: "%02d:%02d", total / 60, total % 60)
 }
 
-func voiceMinutes(_ ms: Int) -> String {
-    "\(max(1, Int((Double(ms) / 60_000).rounded()))) min"
+func voiceMinutes(_ ms: Int) -> Int {
+    max(1, Int((Double(ms) / 60_000).rounded()))
 }

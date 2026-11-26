@@ -24,7 +24,7 @@ export interface VoiceStrings {
     signInAgain: string;
     rejected: string;
     emptyResult: string;
-    unfinished: (minutes: string) => string;
+    unfinished: (minutes: number) => string;
     restore: string;
     insert: string;
     discard: string;

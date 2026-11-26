@@ -23,10 +23,7 @@ export function useVoiceRecovery(target, store = defaultVoiceStore()) {
     }, [refresh]);
     return { items, refresh };
 }
-const minutes = (ms) => {
-    const m = Math.max(1, Math.round(ms / 60_000));
-    return `${m} min`;
-};
+const minutes = (ms) => Math.max(1, Math.round(ms / 60_000));
 export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(), strings = englishVoiceStrings, onText, className, Button }) {
     const { items, refresh } = useVoiceRecovery(target, store);
     const [busy, setBusy] = useState(null);

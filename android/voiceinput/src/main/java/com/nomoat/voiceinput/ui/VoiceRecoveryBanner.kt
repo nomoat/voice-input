@@ -54,7 +54,7 @@ suspend fun recoverableDictations(store: VoiceStore, target: String, exclude: St
             (it.text.isNotEmpty() || it.durationMs > 0)
     }
 
-fun dictationMinutes(ms: Long): String = "${maxOf(1L, (ms / 60_000.0).roundToLong())} min"
+fun dictationMinutes(ms: Long): Int = maxOf(1L, (ms / 60_000.0).roundToLong()).toInt()
 
 @Composable
 fun VoiceRecoveryBanner(
