@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -86,6 +87,7 @@ suspend fun AwaitPointerEventScope.trackVoicePress(
     down: PointerInputChange,
     view: View? = null,
     hold: Boolean = false,
+    pass: PointerEventPass = PointerEventPass.Main,
     position: (PointerInputChange) -> Offset = { it.position },
 ) {
     val start = position(down)
@@ -97,10 +99,10 @@ suspend fun AwaitPointerEventScope.trackVoicePress(
     try {
         while (true) {
             val event = if (holding) {
-                awaitPointerEvent()
+                awaitPointerEvent(pass)
             } else {
                 val remaining = VoiceGesture.TAP_MS - (SystemClock.uptimeMillis() - down.uptimeMillis)
-                if (remaining <= 0) null else withTimeoutOrNull(remaining) { awaitPointerEvent() }
+                if (remaining <= 0) null else withTimeoutOrNull(remaining) { awaitPointerEvent(pass) }
             }
             if (event == null) {
                 holding = true
@@ -156,9 +158,9 @@ suspend fun AwaitPointerEventScope.trackVoicePress(
     }
 }
 
-suspend fun AwaitPointerEventScope.awaitVoiceRelease(id: PointerId): Boolean {
+suspend fun AwaitPointerEventScope.awaitVoiceRelease(id: PointerId, pass: PointerEventPass = PointerEventPass.Main): Boolean {
     while (true) {
-        val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: continue
+        val change = awaitPointerEvent(pass).changes.firstOrNull { it.id == id } ?: continue
         if (!change.pressed) {
             val clean = !change.isConsumed
             change.consume()
