@@ -1,0 +1,37 @@
+export interface VoiceStrings {
+    voiceInput: string;
+    buttonHint: string;
+    stop: string;
+    listening: string;
+    connecting: string;
+    offline: string;
+    paused: string;
+    finishing: string;
+    tidying: string;
+    holdHint: string;
+    releaseToCancel: string;
+    tapHint: string;
+    done: string;
+    cancel: string;
+    close: string;
+    latest: string;
+    stillListening: string;
+    minuteLeft: string;
+    stoppedAtLimit: string;
+    stoppedBySilence: string;
+    savedOffline: string;
+    microphoneDenied: string;
+    signInAgain: string;
+    rejected: string;
+    emptyResult: string;
+    unfinished: (minutes: string) => string;
+    restore: string;
+    insert: string;
+    discard: string;
+    showOriginal: string;
+    showTidied: string;
+}
+export declare const englishVoiceStrings: VoiceStrings;
+export declare const chineseVoiceStrings: VoiceStrings;
+export declare function voiceStrings(locale: string | undefined): VoiceStrings;
+export declare function clock(ms: number): string;

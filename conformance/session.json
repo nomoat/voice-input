@@ -1,0 +1,123 @@
+{
+  "frameMs": 100,
+  "scenarios": [
+    {
+      "name": "basic hands-free session",
+      "steps": [
+        { "do": "start", "mode": "handsFree" },
+        { "expect": { "phase": "recording", "connection": "connecting" } },
+        { "do": "frames", "count": 5 },
+        { "do": "open" },
+        { "sent": { "type": "start", "fromMs": 0, "nextSeg": 0 } },
+        { "server": { "type": "ready", "maxMs": 1200000 } },
+        { "expect": { "connection": "online", "sentFrames": 5 } },
+        { "server": { "type": "interim", "seg": 0, "text": "第一场" } },
+        { "expect": { "committed": "", "interim": "第一场" } },
+        { "do": "frames", "count": 5 },
+        { "expect": { "sentFrames": 10, "elapsedMs": 1000 } },
+        { "server": { "type": "commit", "seg": 0, "text": "第一场，", "startMs": 0, "endMs": 1000 } },
+        { "expect": { "committed": "第一场，", "interim": "", "storedFrames": 0, "journal": ["start", "commit"] } },
+        { "do": "frames", "count": 3 },
+        { "server": { "type": "interim", "seg": 1, "text": "日外" } },
+        { "expect": { "committed": "第一场，", "interim": "日外" } },
+        { "do": "finish" },
+        { "expect": { "phase": "finishing" } },
+        { "sent": { "type": "finish", "endMs": 1300 } },
+        { "server": { "type": "commit", "seg": 1, "text": "日，外景。", "startMs": 1000, "endMs": 1300 } },
+        { "server": { "type": "done", "nextSeg": 2 } },
+        { "expect": { "phase": "done", "committed": "第一场，日，外景。", "result": "第一场，日，外景。", "journal": ["start", "commit", "finish", "commit", "complete"] } }
+      ]
+    },
+    {
+      "name": "network drop rewinds commits after a gap and resumes",
+      "steps": [
+        { "do": "start", "mode": "handsFree" },
+        { "do": "open" },
+        { "server": { "type": "ready", "maxMs": 1200000 } },
+        { "do": "frames", "count": 30 },
+        { "server": { "type": "commit", "seg": 0, "text": "one", "startMs": 0, "endMs": 1000 } },
+        { "server": { "type": "commit", "seg": 2, "text": "three", "startMs": 2000, "endMs": 2500 } },
+        { "server": { "type": "interim", "seg": 1, "text": "tw" } },
+        { "expect": { "committed": "one", "interim": " tw three" } },
+        { "do": "drop" },
+        { "expect": { "phase": "recording", "connection": "offline", "committed": "one", "interim": " three" } },
+        { "do": "frames", "count": 10 },
+        { "do": "reconnect" },
+        { "do": "open" },
+        { "sent": { "type": "start", "fromMs": 1000, "nextSeg": 1 } },
+        { "expect": { "committed": "one", "interim": "", "journal": ["start", "commit", "commit", "rewind"] } },
+        { "server": { "type": "ready", "maxMs": 1200000 } },
+        { "expect": { "connection": "online", "sentFrames": 30 } },
+        { "server": { "type": "commit", "seg": 1, "text": "two three four", "startMs": 1000, "endMs": 4000 } },
+        { "do": "finish" },
+        { "sent": { "type": "finish", "endMs": 4000 } },
+        { "server": { "type": "done", "nextSeg": 2 } },
+        { "expect": { "phase": "done", "result": "one two three four" } }
+      ]
+    },
+    {
+      "name": "finish while offline is pending until the server is back",
+      "steps": [
+        { "do": "start", "mode": "hold" },
+        { "do": "frames", "count": 8 },
+        { "do": "drop" },
+        { "expect": { "connection": "offline" } },
+        { "do": "finish" },
+        { "expect": { "phase": "pending" } },
+        { "do": "reconnect" },
+        { "do": "open" },
+        { "sent": { "type": "start", "fromMs": 0, "nextSeg": 0 } },
+        { "server": { "type": "ready", "maxMs": 1200000 } },
+        { "expect": { "phase": "finishing", "sentFrames": 8 } },
+        { "sent": { "type": "finish", "endMs": 800 } },
+        { "server": { "type": "commit", "seg": 0, "text": "hello", "startMs": 0, "endMs": 800 } },
+        { "server": { "type": "done", "nextSeg": 1 } },
+        { "expect": { "phase": "done", "result": "hello" } }
+      ]
+    },
+    {
+      "name": "the send window waits for acknowledgements",
+      "steps": [
+        { "do": "start", "mode": "handsFree" },
+        { "do": "frames", "count": 350 },
+        { "do": "open" },
+        { "server": { "type": "ready", "maxMs": 1200000 } },
+        { "expect": { "sentFrames": 300 } },
+        { "server": { "type": "ack", "ms": 2000 } },
+        { "expect": { "sentFrames": 320 } },
+        { "server": { "type": "ack", "ms": 30000 } },
+        { "expect": { "sentFrames": 350 } }
+      ]
+    },
+    {
+      "name": "three unauthorized replies fail the session but keep the journal",
+      "steps": [
+        { "do": "start", "mode": "handsFree" },
+        { "do": "frames", "count": 3 },
+        { "do": "open" },
+        { "server": { "type": "error", "code": "unauthorized", "retryable": false } },
+        { "do": "drop" },
+        { "do": "reconnect" },
+        { "do": "open" },
+        { "server": { "type": "error", "code": "unauthorized", "retryable": false } },
+        { "do": "drop" },
+        { "do": "reconnect" },
+        { "do": "open" },
+        { "server": { "type": "error", "code": "unauthorized", "retryable": false } },
+        { "expect": { "phase": "failed", "failure": "unauthorized", "journal": ["start"] } }
+      ]
+    },
+    {
+      "name": "cancel discards",
+      "steps": [
+        { "do": "start", "mode": "hold" },
+        { "do": "frames", "count": 6 },
+        { "do": "open" },
+        { "server": { "type": "ready", "maxMs": 1200000 } },
+        { "do": "cancel" },
+        { "sent": { "type": "cancel" } },
+        { "expect": { "phase": "cancelled", "storedFrames": 0, "journal": ["start", "discarded"], "result": null } }
+      ]
+    }
+  ]
+}

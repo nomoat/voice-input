@@ -1,0 +1,36 @@
+{
+  "join": [
+    { "a": "", "b": "你好", "out": "你好" },
+    { "a": "你好", "b": "", "out": "你好" },
+    { "a": "第一场。", "b": "日，外景。", "out": "第一场。日，外景。" },
+    { "a": "我们开始", "b": "吧", "out": "我们开始吧" },
+    { "a": "Hello", "b": "world", "out": "Hello world" },
+    { "a": "Hello", "b": ", world", "out": "Hello, world" },
+    { "a": "Hello ", "b": "world", "out": "Hello world" },
+    { "a": "镜头推到", "b": "Close up", "out": "镜头推到Close up" },
+    { "a": "OK", "b": "我们走", "out": "OK我们走" },
+    { "a": "안녕하세요", "b": "반갑습니다", "out": "안녕하세요 반갑습니다" },
+    { "a": "こんにちは", "b": "世界", "out": "こんにちは世界" }
+  ],
+  "display": [
+    { "segments": [], "committed": "", "interim": "" },
+    { "segments": [{ "seg": 0, "text": "你好", "final": false }], "committed": "", "interim": "你好" },
+    { "segments": [{ "seg": 0, "text": "你好。", "final": true }, { "seg": 1, "text": "今天", "final": false }], "committed": "你好。", "interim": "今天" },
+    { "segments": [{ "seg": 1, "text": "world", "final": true }, { "seg": 0, "text": "Hello", "final": false }], "committed": "", "interim": "Hello world" },
+    { "segments": [{ "seg": 0, "text": "Hello", "final": true }, { "seg": 1, "text": "world", "final": false }], "committed": "Hello", "interim": " world" }
+  ],
+  "insert": [
+    { "base": "", "start": 0, "end": 0, "text": "你好", "value": "你好", "caret": 2 },
+    { "base": "Hi there", "start": 2, "end": 2, "text": "again", "value": "Hi again there", "caret": 8 },
+    { "base": "前面后面", "start": 2, "end": 2, "text": "中间", "value": "前面中间后面", "caret": 4 },
+    { "base": "replace me", "start": 0, "end": 10, "text": "done", "value": "done", "caret": 4 }
+  ],
+  "gesture": [
+    { "events": [["down", 0, 0, 0], ["up", 200]], "result": "handsFree" },
+    { "events": [["down", 0, 0, 0], ["up", 400]], "result": "finish" },
+    { "events": [["down", 0, 0, 0], ["move", 100, 0, -30], ["up", 150]], "result": "finish" },
+    { "events": [["down", 0, 0, 0], ["move", 500, 0, -70], ["up", 600]], "result": "cancel" },
+    { "events": [["down", 0, 0, 0], ["move", 500, 0, -70], ["move", 550, 0, -20], ["up", 600]], "result": "finish" },
+    { "events": [["down", 0, 0, 0], ["move", 100, 5, -5], ["up", 200]], "result": "handsFree" }
+  ]
+}
