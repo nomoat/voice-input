@@ -6,6 +6,7 @@ import com.nomoat.voiceinput.FakeSockets
 import com.nomoat.voiceinput.MemoryVoiceStore
 import com.nomoat.voiceinput.VoiceMode
 import com.nomoat.voiceinput.VoicePhase
+import com.nomoat.voiceinput.VoiceStop
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -75,7 +76,7 @@ class VoiceInputControllerTest {
         assertEquals(listOf("hello"), rig.texts.map { it.first })
         val info = rig.texts.single().second
         assertEquals(VoiceMode.Hold, info.mode)
-        assertFalse(info.interrupted)
+        assertNull(info.stoppedBy)
         assertFalse(rig.controller.view.value.open)
         assertEquals("inserted", rig.journal().last())
         assertEquals(0, rig.keepAlive.starts)
@@ -112,7 +113,53 @@ class VoiceInputControllerTest {
         assertEquals(VoiceNotice.Pending, rig.controller.view.value.notice)
         rig.serve("kept", 300)
         runCurrent()
-        assertTrue(rig.texts.single().second.interrupted)
+        val info = rig.texts.single().second
+        assertEquals(VoiceMode.Hold, info.mode)
+        assertEquals(VoiceStop.Interrupted, info.stoppedBy)
+        assertFalse(rig.controller.view.value.open)
+    }
+
+    @Test
+    fun losingAudioFocusFinishesAHoldAsInterrupted() = runTest {
+        val rig = Rig(this)
+        rig.controller.begin()
+        runCurrent()
+        rig.controller.setMode(VoiceMode.Hold)
+        rig.mic.frames(3)
+        rig.mic.sink!!.interrupted()
+        runCurrent()
+        assertEquals(VoicePhase.Pending, rig.controller.session?.state?.value?.phase)
+        assertEquals(1, rig.mic.stops)
+        rig.controller.setMode(VoiceMode.HandsFree)
+        assertEquals(VoiceMode.Hold, rig.controller.session?.state?.value?.mode)
+        rig.serve("kept", 300)
+        runCurrent()
+        val info = rig.texts.single().second
+        assertEquals(VoiceMode.Hold, info.mode)
+        assertEquals(VoiceStop.Interrupted, info.stoppedBy)
+        assertFalse(rig.controller.view.value.open)
+    }
+
+    @Test
+    fun losingAudioFocusPausesHandsFree() = runTest {
+        val rig = Rig(this)
+        rig.controller.begin()
+        runCurrent()
+        rig.controller.setMode(VoiceMode.HandsFree)
+        rig.mic.frames(2)
+        rig.mic.sink!!.interrupted()
+        runCurrent()
+        assertEquals(VoicePhase.Paused, rig.controller.session?.state?.value?.phase)
+        rig.mic.sink!!.resumed()
+        runCurrent()
+        assertEquals(VoicePhase.Recording, rig.controller.session?.state?.value?.phase)
+        rig.mic.frames(2, first = 2)
+        rig.controller.finish()
+        rig.serve("note", 400)
+        runCurrent()
+        val info = rig.texts.single().second
+        assertEquals(VoiceMode.HandsFree, info.mode)
+        assertNull(info.stoppedBy)
     }
 
     @Test

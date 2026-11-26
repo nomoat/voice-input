@@ -36,8 +36,7 @@ data class VoiceTextInfo(
     val tidied: Boolean,
     val session: String,
     val mode: VoiceMode,
-    val interrupted: Boolean,
-    val stoppedBy: VoiceStop?,
+    val stoppedBy: VoiceStop? = null,
 )
 
 data class VoiceInputConfig(
@@ -110,7 +109,6 @@ class VoiceInputController(
 
     private var stateJob: Job? = null
     private var noticeJob: Job? = null
-    private var interrupted = false
     private var delivering = false
     private var keptAlive = false
 
@@ -138,7 +136,6 @@ class VoiceInputController(
             ),
         )
         session = s
-        interrupted = false
         mutableView.value = VoiceInputView(open = true, state = s.state.value)
         stateJob = scope.launch {
             s.state.collect { state -> if (session === s) onState(state) }
@@ -151,11 +148,10 @@ class VoiceInputController(
         return s
     }
 
-    fun finish(interrupted: Boolean = false) {
+    fun finish(stoppedBy: VoiceStop? = null) {
         val s = session ?: return
         if (!s.state.value.phase.capturing) return
-        this.interrupted = interrupted
-        s.finish()
+        s.finish(stoppedBy)
     }
 
     fun cancel() {
@@ -171,7 +167,8 @@ class VoiceInputController(
     }
 
     fun setMode(mode: VoiceMode) {
-        session?.setMode(mode)
+        val s = session ?: return
+        if (s.state.value.phase.capturing) s.setMode(mode)
     }
 
     fun armCancel(armed: Boolean) {
@@ -194,7 +191,7 @@ class VoiceInputController(
         val s = session ?: return
         val state = s.state.value
         if (!state.phase.capturing) return
-        if (state.mode != VoiceMode.HandsFree || !keptAlive) finish(interrupted = true)
+        if (state.mode != VoiceMode.HandsFree || !keptAlive) finish(VoiceStop.Interrupted)
     }
 
     fun dispose() {
@@ -215,6 +212,10 @@ class VoiceInputController(
                 else -> v.notice
             }
             v.copy(open = true, state = state, notice = notice)
+        }
+        if (state.phase == VoicePhase.Paused && state.mode != VoiceMode.HandsFree) {
+            session?.finish(VoiceStop.Interrupted)
+            return
         }
         if (state.phase.capturing) {
             if (state.mode == VoiceMode.HandsFree && config.keepAlive && !keptAlive) keptAlive = environment.keepAlive?.start(strings) == true
@@ -256,7 +257,7 @@ class VoiceInputController(
         when (state.stoppedBy) {
             VoiceStop.Limit -> showNotice(VoiceNotice.Limit, STOP_NOTICE_MS)
             VoiceStop.Silence -> showNotice(VoiceNotice.Silence, STOP_NOTICE_MS)
-            null -> close()
+            VoiceStop.Interrupted, null -> close()
         }
     }
 
@@ -285,7 +286,7 @@ class VoiceInputController(
         if (session !== s) return
         delivering = true
         try {
-            c.onText(out, VoiceTextInfo(raw = text, tidied = tidied, session = s.id, mode = state.mode, interrupted = interrupted, stoppedBy = state.stoppedBy))
+            c.onText(out, VoiceTextInfo(raw = text, tidied = tidied, session = s.id, mode = state.mode, stoppedBy = state.stoppedBy))
             withContext(NonCancellable) { s.markInserted() }
         } finally {
             delivering = false

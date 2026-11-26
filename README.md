@@ -113,11 +113,14 @@ Column {
 }
 ```
 
-`onText` receives `VoiceTextInfo` with the session's final `mode` (`Hold` or
-`HandsFree`) and `interrupted` (finished by the system, not by the person), so
-a host can, for example, send a released hold and keep a hands-free text in
-the field. A hold finishes when the app goes to the background. Hands-free
-keeps recording in the background through `VoiceRecordingService`, a
+`onText` receives `VoiceTextInfo` with the session's final `mode` (`Hold`,
+`HandsFree` or `Restore`) and `stoppedBy` (`Interrupted`, `Limit`, `Silence`,
+or null when the person ended it), so a host can, for example, send a
+released hold and keep everything else in the field. A hold finishes as
+`Interrupted` when the app goes to the background, when another app takes
+audio focus, or when the system cancels the touch. Hands-free pauses while
+another app has audio focus, and keeps recording in the background through
+`VoiceRecordingService`, a
 foreground service of type `microphone` that the library manifest declares;
 if Android refuses to start it, the session finishes instead.
 

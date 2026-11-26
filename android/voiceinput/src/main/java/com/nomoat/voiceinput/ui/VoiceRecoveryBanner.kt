@@ -122,8 +122,6 @@ fun VoiceRecoveryBanner(
                                 tidied = item.tidy != null,
                                 session = item.session,
                                 mode = VoiceMode.Restore,
-                                interrupted = false,
-                                stoppedBy = null,
                             ),
                         )
                     }

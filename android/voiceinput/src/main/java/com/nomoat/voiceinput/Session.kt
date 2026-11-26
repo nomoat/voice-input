@@ -46,7 +46,7 @@ enum class VoiceFailure {
 }
 
 enum class VoiceStop {
-    Limit, Silence;
+    Limit, Silence, Interrupted;
 
     val wire: String get() = wireName(name)
 }

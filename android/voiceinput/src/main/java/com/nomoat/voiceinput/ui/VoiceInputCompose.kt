@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nomoat.voiceinput.Release
 import com.nomoat.voiceinput.VoiceGesture
 import com.nomoat.voiceinput.VoiceMode
+import com.nomoat.voiceinput.VoiceStop
 
 @Composable
 fun rememberVoiceInputController(
@@ -115,7 +116,7 @@ suspend fun AwaitPointerEventScope.trackVoicePress(
                 ended = true
                 controller.armCancel(false)
                 if (change.isConsumed) {
-                    controller.finish(interrupted = true)
+                    controller.finish(VoiceStop.Interrupted)
                     return
                 }
                 change.consume()
@@ -153,7 +154,7 @@ suspend fun AwaitPointerEventScope.trackVoicePress(
     } finally {
         if (!ended) {
             controller.armCancel(false)
-            controller.finish(interrupted = true)
+            controller.finish(VoiceStop.Interrupted)
         }
     }
 }
