@@ -80,7 +80,7 @@ export function useVoiceButton(config, disabled = false) {
                 return;
             track.current = null;
             voice.armCancel(false);
-            voice.finish();
+            voice.session.current?.finish('interrupted');
         },
         onKeyDown: (e) => {
             if (disabled || e.repeat) {
