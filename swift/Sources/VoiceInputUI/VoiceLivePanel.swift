@@ -19,6 +19,7 @@ public struct VoiceLivePanel: View {
     @State private var hintHeight: CGFloat = 0
     @State private var hintFullHeight: CGFloat = 0
     @State private var spoken = ""
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private nonisolated static let bottomID = "voice-input-bottom"
     private nonisolated static let space = "voice-input-scroll"
@@ -90,21 +91,8 @@ public struct VoiceLivePanel: View {
         let textLimit = max(44, panelLimit - headerHeight - footerHeight)
 
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                VoiceLevelMeter(level: state.level, live: recording && !armed)
-                Text(armed ? strings.releaseToCancel : status(view, state))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if state.remainingMs <= 60_000 && recording { Text(strings.minuteLeft) }
-                Text(voiceClock(state.elapsedMs)).monospacedDigit()
-            }
-            .font(.caption)
-            .foregroundStyle(muted)
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+            header(view, state, recording: recording, armed: armed, muted: muted)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
 
             ScrollViewReader { proxy in
                 ScrollView {
@@ -194,6 +182,44 @@ public struct VoiceLivePanel: View {
             .accessibilityLabel(empty ? (notice ?? "") : state.committed)
     }
 
+    private func header(_ view: VoiceInputView, _ state: VoiceState, recording: Bool, armed: Bool, muted: Color) -> some View {
+        let line = armed ? strings.releaseToCancel : status(view, state)
+        let lastMinute = state.remainingMs <= 60_000 && recording
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        VoiceLevelMeter(level: state.level, live: recording && !armed)
+                        Spacer(minLength: 0)
+                        Text(voiceClock(state.elapsedMs)).monospacedDigit().fixedSize()
+                    }
+                    Text(line)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if lastMinute {
+                        Text(strings.minuteLeft).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(spacing: 8) {
+                    VoiceLevelMeter(level: state.level, live: recording && !armed)
+                    Text(line)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if lastMinute { Text(strings.minuteLeft) }
+                    Text(voiceClock(state.elapsedMs)).monospacedDigit()
+                }
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(muted)
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
+
     @ViewBuilder
     private func footer(_ view: VoiceInputView, _ state: VoiceState, recording: Bool, hold: Bool, armed: Bool, muted: Color, hasNotice: Bool) -> some View {
         let phase = state.phase
@@ -203,7 +229,14 @@ public struct VoiceLivePanel: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if (recording || phase == .paused) && !hold {
+            if (recording || phase == .paused) && !hold && dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    VoicePanelButton(title: strings.cancel, primary: false, wide: true) { controller.cancel() }
+                    VoicePanelButton(title: strings.done, primary: true, wide: true) { controller.finish() }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if (recording || phase == .paused) && !hold && !dynamicTypeSize.isAccessibilitySize {
                 let hint = state.mode == .undecided ? "" : strings.tapHint
                 Text(hint)
                     .lineLimit(2)
@@ -257,6 +290,7 @@ public struct VoiceLivePanel: View {
 struct VoicePanelButton: View {
     let title: String
     let primary: Bool
+    var wide = false
     let action: () -> Void
 
     var body: some View {
@@ -265,6 +299,7 @@ struct VoicePanelButton: View {
                 .font(.footnote.weight(primary ? .semibold : .regular))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
+                .frame(maxWidth: wide ? .infinity : nil)
                 .foregroundStyle(primary ? AnyShapeStyle(.background) : AnyShapeStyle(.primary))
                 .background(primary ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.clear), in: Capsule())
                 .overlay(Capsule().strokeBorder(primary ? Color.clear : Color.gray.opacity(0.28)))

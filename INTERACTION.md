@@ -50,6 +50,9 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
 - Footer: hold mode shows `Release to insert · Slide up to cancel`;
   hands-free shows `Cancel` and `Done`, with the tap hint beside them when it
   fits in two lines (otherwise the hint is left out; the buttons keep their size).
+- At accessibility text sizes (Swift) the panel stacks: the meter and the time
+  (never wrapped) on one line, the status below in up to two lines, and
+  `Cancel` and `Done` full width one above the other, without the tap hint.
 - Read only while recording. Editing happens in the host's field afterwards.
 - Screen readers hear committed text, not interim text.
 
