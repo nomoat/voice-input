@@ -43,6 +43,21 @@ const WORKLET = `class VoiceInputTap extends AudioWorkletProcessor {
   }
 }
 registerProcessor('voice-input-tap', VoiceInputTap);`;
+async function tapLoaded(context) {
+    if (!context.audioWorklet)
+        return false;
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+    try {
+        await context.audioWorklet.addModule(url);
+        return true;
+    }
+    catch {
+        return false;
+    }
+    finally {
+        URL.revokeObjectURL(url);
+    }
+}
 export function webCapture(options = {}) {
     return async (sink) => {
         const Context = globalThis.AudioContext ?? globalThis.webkitAudioContext;
@@ -79,14 +94,7 @@ export function webCapture(options = {}) {
                 if (!stopped)
                     sink.samples(resample(data));
             };
-            if (context.audioWorklet) {
-                const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-                try {
-                    await context.audioWorklet.addModule(url);
-                }
-                finally {
-                    URL.revokeObjectURL(url);
-                }
+            if (await tapLoaded(context)) {
                 const node = new AudioWorkletNode(context, 'voice-input-tap', { numberOfInputs: 1, numberOfOutputs: 0 });
                 node.port.onmessage = (event) => deliver(event.data);
                 source.connect(node);

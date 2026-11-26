@@ -50,6 +50,19 @@ export interface WebCaptureOptions {
   constraints?: MediaTrackConstraints;
 }
 
+async function tapLoaded(context: AudioContext): Promise<boolean> {
+  if (!context.audioWorklet) return false;
+  const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+  try {
+    await context.audioWorklet.addModule(url);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function webCapture(options: WebCaptureOptions = {}): CaptureFactory {
   return async (sink: CaptureSink): Promise<Capture> => {
     const Context = globalThis.AudioContext ?? (globalThis as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -81,13 +94,7 @@ export function webCapture(options: WebCaptureOptions = {}): CaptureFactory {
       const deliver = (data: Float32Array) => {
         if (!stopped) sink.samples(resample(data));
       };
-      if (context.audioWorklet) {
-        const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-        try {
-          await context.audioWorklet.addModule(url);
-        } finally {
-          URL.revokeObjectURL(url);
-        }
+      if (await tapLoaded(context)) {
         const node = new AudioWorkletNode(context, 'voice-input-tap', { numberOfInputs: 1, numberOfOutputs: 0 });
         node.port.onmessage = (event: MessageEvent<Float32Array>) => deliver(event.data);
         source.connect(node);
