@@ -130,9 +130,60 @@ recording in the background, `UIBackgroundModes` = `audio`.
 swift test            # macOS: conformance/*.json, file store, session scenarios
 ```
 
-## Android
+## Android (Kotlin)
 
-`android/voiceinput`: the Kotlin core and Compose UI.
+`android/voiceinput` is an Android library module (namespace
+`com.nomoat.voiceinput`, minSdk 26, Jetpack Compose). It builds on its own
+(`cd android && ./gradlew :voiceinput:testDebugUnitTest`) or inside a host
+build: copy the directory, `include(":voiceinput")` in the host's
+`settings.gradle.kts` and add `implementation(project(":voiceinput"))`.
+
+- `com.nomoat.voiceinput`: `VoiceSession` (coroutines, `state: StateFlow<VoiceState>`,
+  `start`, `setMode`, `finish`, `cancel`, `abandon`, `detach`, `markInserted`,
+  `saveTidy`, `result: Deferred`, `VoiceSession.restore`), the journal,
+  `MemoryVoiceStore`, `FileVoiceStore` (`filesDir/voice-input/<session>/`),
+  `listDictations`, `VoiceGesture`, `OkHttpVoiceSocket` and `MicrophoneCapture`
+  (`AudioRecord`, `VOICE_RECOGNITION`, 16 kHz mono PCM16; audio focus loss
+  pauses the session).
+- `com.nomoat.voiceinput.ui`: `rememberVoiceInputController`, `VoiceButton`,
+  `Modifier.voiceInputGesture`, `trackVoicePress` (for a host's own gesture
+  code), `VoiceLivePanel`, `VoiceRecoveryBanner` and `englishVoiceStrings`.
+  `chineseVoiceStrings` and `voiceStrings(locale)` are in `ui/ChineseStrings.kt`,
+  which a host that ships only English can leave out.
+
+```kotlin
+val voice = rememberVoiceInputController(
+    VoiceInputConfig(
+        url = "wss://example.com/api/voice/stream",
+        token = { auth.freshToken() },
+        languages = listOf("zh-CN"),
+        target = "doc:$docId",
+        onText = { text, info -> insertAtCursor(text) },
+    ),
+    strings = chineseVoiceStrings,
+)
+Column {
+    VoiceLivePanel(voice, strings = chineseVoiceStrings)
+    Row { TextField(/* … */); VoiceButton(voice, strings = chineseVoiceStrings) }
+}
+```
+
+`onText` receives `VoiceTextInfo` with the session's final `mode` (`Hold`,
+`HandsFree` or `Restore`) and `stoppedBy` (`Interrupted`, `Limit`, `Silence`,
+or null when the person ended it), so a host can, for example, send a
+released hold and keep everything else in the field. A hold finishes as
+`Interrupted` when the app goes to the background, when another app takes
+audio focus, or when the system cancels the touch. Hands-free pauses while
+another app has audio focus, and keeps recording in the background through
+`VoiceRecordingService`, a
+foreground service of type `microphone` that the library manifest declares;
+if Android refuses to start it, the session finishes instead.
+
+The session takes its `CoroutineScope` and clock from `VoiceSessionOptions`, so
+tests run it on a `TestScope` with virtual time. `src/test` runs
+`conformance/*.json` (text, gestures and every session scenario) on the JVM. A
+vendored copy without the repository root reads the files from
+`voiceinput/conformance/` or the `voiceinput.conformance` system property.
 
 ## Development
 
@@ -141,6 +192,7 @@ pnpm install
 pnpm typecheck && pnpm test
 pnpm build            # dist/ is committed so apps can depend on a Git revision
 pnpm check:dist
+cd android && ./gradlew :voiceinput:testDebugUnitTest
 ```
 
 Automated tests use synthetic PCM. They never open a microphone.

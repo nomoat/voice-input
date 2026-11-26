@@ -1,0 +1,76 @@
+package com.nomoat.voiceinput.ui
+
+data class VoiceStrings(
+    val voiceInput: String,
+    val buttonHint: String,
+    val stop: String,
+    val listening: String,
+    val connecting: String,
+    val offline: String,
+    val paused: String,
+    val finishing: String,
+    val tidying: String,
+    val holdHint: String,
+    val releaseToCancel: String,
+    val tapHint: String,
+    val done: String,
+    val cancel: String,
+    val close: String,
+    val latest: String,
+    val stillListening: String,
+    val minuteLeft: String,
+    val stoppedAtLimit: String,
+    val stoppedBySilence: String,
+    val savedOffline: String,
+    val microphoneDenied: String,
+    val signInAgain: String,
+    val rejected: String,
+    val emptyResult: String,
+    val unfinished: (String) -> String,
+    val restore: String,
+    val insert: String,
+    val discard: String,
+    val showOriginal: String,
+    val showTidied: String,
+)
+
+val englishVoiceStrings: VoiceStrings = VoiceStrings(
+    voiceInput = "Voice input",
+    buttonHint = "Tap to talk hands-free. Hold to talk while holding.",
+    stop = "Stop and insert",
+    listening = "Listening",
+    connecting = "Connecting… your voice is being recorded",
+    offline = "Offline · still recording",
+    paused = "Paused by another app · tap Done or continue later",
+    finishing = "Finishing…",
+    tidying = "Tidying…",
+    holdHint = "Release to insert · Slide up to cancel",
+    releaseToCancel = "Release to cancel",
+    tapHint = "Tap the microphone again or Done when you finish",
+    done = "Done",
+    cancel = "Cancel",
+    close = "Close",
+    latest = "Latest",
+    stillListening = "Still listening · tap Done when you finish",
+    minuteLeft = "1 min left",
+    stoppedAtLimit = "Stopped at 20 minutes. Your text is kept.",
+    stoppedBySilence = "Stopped after a long silence. Your text is kept.",
+    savedOffline = "Saved. The text appears when you are back online.",
+    microphoneDenied = "Allow microphone access to use voice input.",
+    signInAgain = "Sign in again to finish this dictation. It is saved on this device.",
+    rejected = "Voice input is not available right now. Your dictation is saved on this device.",
+    emptyResult = "Didn’t catch that.",
+    unfinished = { minutes -> "Unfinished dictation · $minutes" },
+    restore = "Restore",
+    insert = "Insert",
+    discard = "Discard",
+    showOriginal = "Show original",
+    showTidied = "Show tidied",
+)
+
+fun clock(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    val minutes = total / 60
+    val seconds = total % 60
+    return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+}

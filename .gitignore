@@ -5,3 +5,5 @@ android/**/build/
 android/.gradle/
 *.log
 .DS_Store
+android/local.properties
+android/.kotlin/
