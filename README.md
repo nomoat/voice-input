@@ -107,7 +107,9 @@ VStack {
 
 The endpoint closure runs for every connection attempt; throw
 `VoiceEndpointError.unauthorized` when the host's credential is refused (three
-in a row fail the session). `VoiceTextInfo.mode` says whether the dictation
+in a row fail the session), or `VoiceEndpointError.refused` when the host will
+not connect this dictation at all (the session fails at once and keeps the
+dictation on the device for the recovery banner). `VoiceTextInfo.mode` says whether the dictation
 ended as a hold or hands-free, for hosts that send on release. Strings default
 to `VoiceStrings.current` (Chinese for a `zh` locale, else English); pass
 `englishVoiceStrings`, `chineseVoiceStrings` or your own `VoiceStrings`.

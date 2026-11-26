@@ -102,6 +102,24 @@ struct SessionTests {
         #expect(rig.sockets.isEmpty)
     }
 
+    @Test func refusedTicketFailsAtOnceAndKeepsTheDictation() async throws {
+        let rig = Rig()
+        rig.endpointError = VoiceEndpointError.refused
+        let session = VoiceSession(options: rig.options())
+        await session.start(mode: .handsFree)
+        rig.frames(3)
+        await rig.settle(session)
+        #expect(session.state.phase == .failed)
+        #expect(session.state.failure == .rejected)
+        #expect(rig.sockets.isEmpty)
+        rig.clock.advance(by: 20_000)
+        await rig.settle(session)
+        #expect(rig.sockets.isEmpty)
+        let summary = VoiceJournal.summarize(await rig.store.journal(session.id))
+        #expect(summary != nil)
+        #expect(summary?.discardedAt == nil)
+    }
+
     @Test func reconnectBacksOff() async throws {
         let rig = Rig()
         let session = VoiceSession(options: rig.options())

@@ -45,6 +45,7 @@ public struct VoiceEndpoint: Sendable, Equatable {
 
 public enum VoiceEndpointError: Error, Sendable {
     case unauthorized
+    case refused
 }
 
 public typealias VoiceEndpointProvider = @MainActor @Sendable () async throws -> VoiceEndpoint
@@ -55,8 +56,8 @@ public enum VoiceEndpoints {
             let value: String?
             do {
                 value = try await token?()
-            } catch VoiceEndpointError.unauthorized {
-                throw VoiceEndpointError.unauthorized
+            } catch let error as VoiceEndpointError {
+                throw error
             } catch {
                 value = nil
             }

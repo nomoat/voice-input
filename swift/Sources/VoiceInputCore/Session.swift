@@ -476,6 +476,10 @@ public final class VoiceSession {
             unauthorized += 1
             if unauthorized >= 3 { fail(.unauthorized) } else { dropped() }
             return
+        } catch VoiceEndpointError.refused {
+            guard !isOver, ws == nil else { return }
+            fail(.rejected)
+            return
         } catch {
             guard !isOver, ws == nil else { return }
             dropped()
