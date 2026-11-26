@@ -110,7 +110,10 @@ The endpoint closure runs for every connection attempt; throw
 in a row fail the session), or `VoiceEndpointError.refused` when the host will
 not connect this dictation at all (the session fails at once and keeps the
 dictation on the device for the recovery banner). `VoiceTextInfo.mode` says whether the dictation
-ended as a hold or hands-free, for hosts that send on release. Strings default
+ended as a hold or hands-free, for hosts that send on release.
+`VoiceInputController.recoverable` lists the target's dictations that were not
+inserted; `VoiceRecoveryBanner(controller:)` shows the first one and takes no
+room in a stack when there is none. Strings default
 to `VoiceStrings.current` (Chinese for a `zh` locale, else English); pass
 `englishVoiceStrings`, `chineseVoiceStrings` or your own `VoiceStrings`.
 

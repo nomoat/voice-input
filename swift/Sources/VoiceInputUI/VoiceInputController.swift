@@ -99,25 +99,57 @@ public final class VoiceInputController {
         return Locale.preferredLanguages.filter { seen.insert($0).inserted }.prefix(limit).map { $0 }
     }
 
-    public var configuration: Configuration
+    public var configuration: Configuration {
+        didSet {
+            if oldValue.target != configuration.target { refreshRecoverable() }
+        }
+    }
     public private(set) var view = VoiceInputView() {
         didSet {
-            if isOpen != view.open { isOpen = view.open }
+            if isOpen != view.open {
+                isOpen = view.open
+                if !isOpen { refreshRecoverable() }
+            }
             if isActive != view.isActive { isActive = view.isActive }
         }
     }
     public private(set) var isOpen = false
     public private(set) var isActive = false
+    public private(set) var recoverable: [StoredDictation] = []
 
     @ObservationIgnored public private(set) var session: VoiceSession?
     @ObservationIgnored private var subscription: VoiceSubscription?
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private var delivering = false
+    @ObservationIgnored private var recoveryTask: Task<Void, Never>?
     @ObservationIgnored private let observers = ObserverBag()
 
     public init(configuration: Configuration) {
         self.configuration = configuration
         observeApplication()
+        refreshRecoverable()
+    }
+
+    public func refreshRecoverable() {
+        recoveryTask?.cancel()
+        let store = configuration.store
+        let target = configuration.target
+        recoveryTask = Task { [weak self] in
+            let all = await listDictations(store, target: target)
+            guard !Task.isCancelled, let self else { return }
+            let shown = Self.recoverable(all, live: self.session?.id)
+            if shown != self.recoverable { self.recoverable = shown }
+        }
+    }
+
+    static func recoverable(_ all: [StoredDictation], live: String?) -> [StoredDictation] {
+        all.filter { item in
+            guard item.status == .unfinished || item.status == .complete else { return false }
+            guard !item.text.isEmpty || item.durationMs > 0 else { return false }
+            if item.session == live { return false }
+            if let running = VoiceSession.running(item.session), running.state.phase != .pending { return false }
+            return true
+        }
     }
 
     public var isDelivering: Bool { delivering || view.tidying }
@@ -302,6 +334,9 @@ public final class VoiceInputController {
         })
         observers.add(center.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
+        })
+        observers.add(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshRecoverable() }
         })
         #endif
     }

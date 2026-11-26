@@ -43,28 +43,25 @@ public struct VoiceRecoveryBanner: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if let item = items.first { banner(item) }
-        }
-        .task(id: target) { await refresh() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await refresh() } }
-        }
-        .onChange(of: controller?.isOpen ?? false) { _, open in
-            if !open { Task { await refresh() } }
+        if let controller {
+            if let item = controller.recoverable.first { banner(item) }
+        } else {
+            VStack(spacing: 0) {
+                if let item = items.first { banner(item) }
+            }
+            .task(id: target) { await refresh() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await refresh() } }
+            }
         }
     }
 
     private func refresh() async {
-        let all = await listDictations(store, target: target)
-        let live = controller?.session?.id
-        items = all.filter { item in
-            guard item.status == .unfinished || item.status == .complete else { return false }
-            guard !item.text.isEmpty || item.durationMs > 0 else { return false }
-            if item.session == live { return false }
-            if let running = VoiceSession.running(item.session), running.state.phase != .pending { return false }
-            return true
+        if let controller {
+            controller.refreshRecoverable()
+            return
         }
+        items = VoiceInputController.recoverable(await listDictations(store, target: target), live: nil)
     }
 
     private func banner(_ item: StoredDictation) -> some View {
