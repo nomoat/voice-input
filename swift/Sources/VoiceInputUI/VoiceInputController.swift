@@ -100,7 +100,14 @@ public final class VoiceInputController {
     }
 
     public var configuration: Configuration
-    public private(set) var view = VoiceInputView()
+    public private(set) var view = VoiceInputView() {
+        didSet {
+            if isOpen != view.open { isOpen = view.open }
+            if isActive != view.isActive { isActive = view.isActive }
+        }
+    }
+    public private(set) var isOpen = false
+    public private(set) var isActive = false
 
     @ObservationIgnored public private(set) var session: VoiceSession?
     @ObservationIgnored private var subscription: VoiceSubscription?
@@ -113,7 +120,7 @@ public final class VoiceInputController {
         observeApplication()
     }
 
-    public var isActive: Bool { view.isActive }
+    public var isDelivering: Bool { delivering || view.tidying }
 
     @discardableResult
     public func begin(mode: VoiceMode = .undecided) -> VoiceSession? {

@@ -43,14 +43,14 @@ public struct VoiceRecoveryBanner: View {
     }
 
     public var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if let item = items.first { banner(item) }
         }
         .task(id: target) { await refresh() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await refresh() } }
         }
-        .onChange(of: controller?.view.open ?? false) { _, open in
+        .onChange(of: controller?.isOpen ?? false) { _, open in
             if !open { Task { await refresh() } }
         }
     }
