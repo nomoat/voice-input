@@ -27,7 +27,7 @@ const minutes = (ms) => {
     const m = Math.max(1, Math.round(ms / 60_000));
     return `${m} min`;
 };
-export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(), strings = englishVoiceStrings, onText, className }) {
+export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(), strings = englishVoiceStrings, onText, className, Button }) {
     const { items, refresh } = useVoiceRecovery(target, store);
     const [busy, setBusy] = useState(null);
     const item = items[0];
@@ -45,7 +45,7 @@ export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(),
                 text = result.text;
             }
             if (text)
-                await onText(text, { raw: item.text || text, tidied: Boolean(item.tidy), session: item.session });
+                await onText(text, { raw: item.text || text, tidied: Boolean(item.tidy), session: item.session, mode: 'restore' });
             await markInserted(store, item.session);
         }
         finally {
@@ -57,6 +57,7 @@ export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(),
         await markDiscarded(store, item.session);
         void refresh();
     };
+    const action = (label, onClick, primary) => Button ? _jsx(Button, { onClick: onClick, primary: primary, disabled: busy !== null, children: label }) : _jsx("button", { type: "button", disabled: busy !== null, onClick: onClick, children: label });
     const preview = item.text.length > 80 ? `${item.text.slice(0, 80)}…` : item.text;
-    return (_jsxs("div", { role: "status", "data-voice-recovery": "", className: className, style: className ? undefined : { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--voice-border, rgba(127,127,127,0.28))', borderRadius: 12, fontSize: 13 }, children: [_jsxs("span", { style: { flex: 1, minWidth: 0 }, children: [_jsx("strong", { style: { fontWeight: 600 }, children: strings.unfinished(minutes(item.durationMs)) }), preview ? _jsx("span", { style: { display: 'block', color: 'var(--voice-muted, GrayText)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: preview }) : null] }), _jsx("button", { type: "button", disabled: busy !== null, onClick: () => void restore(), children: busy ? strings.finishing : item.status === 'complete' ? strings.insert : strings.restore }), _jsx("button", { type: "button", disabled: busy !== null, onClick: () => void discard(), children: strings.discard })] }));
+    return (_jsxs("div", { role: "status", "data-voice-recovery": "", className: className, style: className ? undefined : { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--voice-border, rgba(127,127,127,0.28))', borderRadius: 12, fontSize: 13 }, children: [_jsxs("span", { style: { flex: 1, minWidth: 0 }, children: [_jsx("strong", { style: { fontWeight: 600 }, children: strings.unfinished(minutes(item.durationMs)) }), preview ? _jsx("span", { style: { display: 'block', color: 'var(--voice-muted, GrayText)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: preview }) : null] }), action(busy ? strings.finishing : item.status === 'complete' ? strings.insert : strings.restore, () => void restore(), true), action(strings.discard, () => void discard(), false)] }));
 }

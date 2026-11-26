@@ -151,9 +151,9 @@ export function LivePanel({ view, strings, anchor, onDone, onCancel, onClose, Bu
         {notice && (committed || interim) ? <div style={{ marginTop: 6, fontSize: 13, color: color.muted }}>{notice}</div> : null}
       </div>
       {!follow ? (
-        <button type="button" onClick={() => setFollow(true)} style={{ ...button(false), position: 'absolute', right: 12, bottom: 56, background: color.bg, fontSize: 12 }}>
-          {strings.latest} ↓
-        </button>
+        <div style={{ position: 'absolute', right: 12, bottom: 56 }}>
+          {Button ? <Button onClick={() => setFollow(true)} primary={false}>{`${strings.latest} ↓`}</Button> : <button type="button" onClick={() => setFollow(true)} style={{ ...button(false), background: color.bg, fontSize: 12 }}>{strings.latest} ↓</button>}
+        </div>
       ) : null}
       <span aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{committed.slice(-200)}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 10px 14px', borderTop: `1px solid ${cancelArmed ? 'transparent' : color.border}`, fontSize: 12, color: cancelArmed ? '#fff' : color.muted }}>

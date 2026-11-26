@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { VoiceSession } from '../client/session.js';
 import { listDictations, markDiscarded, markInserted, type StoredDictation } from '../client/recovery.js';
 import type { VoiceStore } from '../client/store.js';
@@ -13,6 +13,7 @@ export interface VoiceRecoveryProps {
   strings?: VoiceStrings;
   onText: (text: string, info: VoiceTextInfo) => void | Promise<void>;
   className?: string;
+  Button?: (props: { onClick: () => void; primary: boolean; disabled?: boolean; children: string }) => ReactElement;
 }
 
 export function useVoiceRecovery(target: string, store: VoiceStore = defaultVoiceStore()) {
@@ -39,7 +40,7 @@ const minutes = (ms: number) => {
   return `${m} min`;
 };
 
-export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(), strings = englishVoiceStrings, onText, className }: VoiceRecoveryProps) {
+export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(), strings = englishVoiceStrings, onText, className, Button }: VoiceRecoveryProps) {
   const { items, refresh } = useVoiceRecovery(target, store);
   const [busy, setBusy] = useState<string | null>(null);
   const item = items[0];
@@ -55,7 +56,7 @@ export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(),
         if (!result) return;
         text = result.text;
       }
-      if (text) await onText(text, { raw: item.text || text, tidied: Boolean(item.tidy), session: item.session });
+      if (text) await onText(text, { raw: item.text || text, tidied: Boolean(item.tidy), session: item.session, mode: 'restore' });
       await markInserted(store, item.session);
     } finally {
       setBusy(null);
@@ -68,6 +69,9 @@ export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(),
     void refresh();
   };
 
+  const action = (label: string, onClick: () => void, primary: boolean) =>
+    Button ? <Button onClick={onClick} primary={primary} disabled={busy !== null}>{label}</Button> : <button type="button" disabled={busy !== null} onClick={onClick}>{label}</button>;
+
   const preview = item.text.length > 80 ? `${item.text.slice(0, 80)}…` : item.text;
   return (
     <div role="status" data-voice-recovery="" className={className} style={className ? undefined : { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--voice-border, rgba(127,127,127,0.28))', borderRadius: 12, fontSize: 13 }}>
@@ -75,8 +79,8 @@ export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(),
         <strong style={{ fontWeight: 600 }}>{strings.unfinished(minutes(item.durationMs))}</strong>
         {preview ? <span style={{ display: 'block', color: 'var(--voice-muted, GrayText)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</span> : null}
       </span>
-      <button type="button" disabled={busy !== null} onClick={() => void restore()}>{busy ? strings.finishing : item.status === 'complete' ? strings.insert : strings.restore}</button>
-      <button type="button" disabled={busy !== null} onClick={() => void discard()}>{strings.discard}</button>
+      {action(busy ? strings.finishing : item.status === 'complete' ? strings.insert : strings.restore, () => void restore(), true)}
+      {action(strings.discard, () => void discard(), false)}
     </div>
   );
 }

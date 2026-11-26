@@ -3,7 +3,7 @@ export type VoicePhase = 'starting' | 'recording' | 'paused' | 'finishing' | 'pe
 export type VoiceConnection = 'connecting' | 'online' | 'offline';
 export type VoiceMode = 'undecided' | 'hold' | 'handsFree' | 'restore';
 export type VoiceFailure = 'microphone' | 'unauthorized' | 'rejected';
-export type VoiceStop = 'limit' | 'silence';
+export type VoiceStop = 'limit' | 'silence' | 'interrupted';
 export interface VoiceState {
     phase: VoicePhase;
     connection: VoiceConnection;

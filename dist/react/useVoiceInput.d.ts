@@ -1,9 +1,11 @@
-import { VoiceSession, type CaptureFactory, type VoiceMode, type VoiceState } from '../client/session.js';
+import { VoiceSession, type CaptureFactory, type VoiceMode, type VoiceState, type VoiceStop } from '../client/session.js';
 import { type VoiceStore } from '../client/store.js';
 export interface VoiceTextInfo {
     raw: string;
     tidied: boolean;
     session: string;
+    mode: VoiceMode;
+    stoppedBy?: VoiceStop;
 }
 export interface VoiceInputConfig {
     url: string;

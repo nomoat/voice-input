@@ -14,6 +14,11 @@ first word is never lost.
 | Hold, slide up more than 65 pt | `Release to cancel` (the panel turns red). Slide back to keep. |
 | A hold interrupted by the system (pointer cancel, app to background) | Finishes and inserts. Nothing is lost. |
 
+The host's `onText` receives `mode` (`hold`, `handsFree` or `restore`) and
+`stoppedBy` (`interrupted`, `limit`, `silence`). A host that sends on release
+(Impo) sends only for `mode: hold` without a `stoppedBy`, and inserts
+everything else into the field.
+
 Keyboard (Web/Desktop), on the focused button: Space held = hold to talk,
 Space or Enter tapped = hands-free, Escape = cancel, Cmd/Ctrl+Enter = Done.
 
