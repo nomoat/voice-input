@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { VoiceSession, type CaptureFactory, type VoiceMode, type VoiceState } from '../client/session.js';
+import { VoiceSession, type CaptureFactory, type VoiceMode, type VoiceState, type VoiceStop } from '../client/session.js';
 import { MemoryVoiceStore, type VoiceStore } from '../client/store.js';
 import { IndexedDbVoiceStore } from '../client/web/idb-store.js';
 import { webCapture } from '../client/web/capture.js';
@@ -8,6 +8,8 @@ export interface VoiceTextInfo {
   raw: string;
   tidied: boolean;
   session: string;
+  mode: VoiceMode;
+  stoppedBy?: VoiceStop;
 }
 
 export interface VoiceInputConfig {
@@ -94,7 +96,8 @@ export function useVoiceInput(config: VoiceInputConfig) {
       }
     }
     if (sessionRef.current !== session) return;
-    await c.onText(out, { raw: text, tidied, session: session.id });
+    const { mode, stoppedBy } = session.state;
+    await c.onText(out, { raw: text, tidied, session: session.id, mode, ...(stoppedBy ? { stoppedBy } : {}) });
     await session.markInserted();
   }, [patch]);
 
@@ -136,7 +139,7 @@ export function useVoiceInput(config: VoiceInputConfig) {
         return;
       }
       if (sessionRef.current !== session) return;
-      if (state.stoppedBy) showNotice(state.stoppedBy, 4000);
+      if (state.stoppedBy && state.stoppedBy !== 'interrupted') showNotice(state.stoppedBy, 4000);
       else close();
     });
     void session.start(mode);
@@ -169,7 +172,7 @@ export function useVoiceInput(config: VoiceInputConfig) {
   useEffect(() => {
     const onHide = () => {
       const session = sessionRef.current;
-      if (document.visibilityState === 'hidden' && session?.state.mode !== 'handsFree') session?.finish();
+      if (document.visibilityState === 'hidden' && session?.state.mode !== 'handsFree') session?.finish('interrupted');
     };
     const onPageHide = () => {
       const session = sessionRef.current;

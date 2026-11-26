@@ -59,7 +59,8 @@ export function useVoiceInput(config) {
         }
         if (sessionRef.current !== session)
             return;
-        await c.onText(out, { raw: text, tidied, session: session.id });
+        const { mode, stoppedBy } = session.state;
+        await c.onText(out, { raw: text, tidied, session: session.id, mode, ...(stoppedBy ? { stoppedBy } : {}) });
         await session.markInserted();
     }, [patch]);
     const begin = useCallback((mode) => {
@@ -107,7 +108,7 @@ export function useVoiceInput(config) {
             }
             if (sessionRef.current !== session)
                 return;
-            if (state.stoppedBy)
+            if (state.stoppedBy && state.stoppedBy !== 'interrupted')
                 showNotice(state.stoppedBy, 4000);
             else
                 close();
@@ -142,7 +143,7 @@ export function useVoiceInput(config) {
         const onHide = () => {
             const session = sessionRef.current;
             if (document.visibilityState === 'hidden' && session?.state.mode !== 'handsFree')
-                session?.finish();
+                session?.finish('interrupted');
         };
         const onPageHide = () => {
             const session = sessionRef.current;

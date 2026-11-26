@@ -1,3 +1,4 @@
+import { type ReactElement } from 'react';
 import { type StoredDictation } from '../client/recovery.js';
 import type { VoiceStore } from '../client/store.js';
 import { type VoiceStrings } from './strings.js';
@@ -10,9 +11,15 @@ export interface VoiceRecoveryProps {
     strings?: VoiceStrings;
     onText: (text: string, info: VoiceTextInfo) => void | Promise<void>;
     className?: string;
+    Button?: (props: {
+        onClick: () => void;
+        primary: boolean;
+        disabled?: boolean;
+        children: string;
+    }) => ReactElement;
 }
 export declare function useVoiceRecovery(target: string, store?: VoiceStore): {
     items: StoredDictation[];
     refresh: () => Promise<void>;
 };
-export declare function VoiceRecovery({ target, url, token, store, strings, onText, className }: VoiceRecoveryProps): import("react").JSX.Element | null;
+export declare function VoiceRecovery({ target, url, token, store, strings, onText, className, Button }: VoiceRecoveryProps): import("react").JSX.Element | null;
