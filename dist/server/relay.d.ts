@@ -5,6 +5,11 @@ import { type RelaySessionStats, type SegmentTiming } from './session.js';
 import type { ProviderSpec } from './providers/types.js';
 export interface VoiceUser {
     userId: string;
+    languages?: readonly string[];
+}
+export declare class VoiceRefusal extends Error {
+    readonly code: 'forbidden' | 'unauthorized';
+    constructor(code?: 'forbidden' | 'unauthorized');
 }
 export interface VoiceMetric extends RelaySessionStats {
     event: 'voice.session';

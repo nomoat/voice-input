@@ -32,7 +32,7 @@ speech service directly.
 | `{"type":"commit","seg":7,"text":"…","startMs":181000,"endMs":192300}` | Final text for segment 7. Segments are contiguous: `startMs` of segment n+1 equals `endMs` of segment n. Commits can arrive out of order. |
 | `{"type":"ack","ms":192300}` | Audio received up to this position. |
 | `{"type":"done","nextSeg":8}` | Every segment is committed. The server closes the socket. |
-| `{"type":"error","code":"…","retryable":true}` | `unauthorized`, `bad_request`, `limit`, `providers_unavailable`, `timeout`, `server`. The server closes the socket after an error. |
+| `{"type":"error","code":"…","retryable":true}` | `unauthorized`, `forbidden` (signed in but not allowed, for example no AI consent), `bad_request`, `limit`, `providers_unavailable`, `timeout`, `server`. The server closes the socket after an error. |
 
 The speech service in use is never sent to the client.
 

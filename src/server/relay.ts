@@ -8,6 +8,13 @@ import type { ProviderSpec } from './providers/types.js';
 
 export interface VoiceUser {
   userId: string;
+  languages?: readonly string[];
+}
+
+export class VoiceRefusal extends Error {
+  constructor(readonly code: 'forbidden' | 'unauthorized' = 'forbidden') {
+    super(`voice ${code}`);
+  }
 }
 
 export interface VoiceMetric extends RelaySessionStats {
@@ -123,14 +130,16 @@ export function createVoiceRelay(options: VoiceRelayOptions): VoiceRelay {
       start = message;
       void (async () => {
         let who: VoiceUser | null = null;
+        let refused: 'forbidden' | 'unauthorized' = 'unauthorized';
         try {
           who = await options.authenticate(request, message.token);
-        } catch {
+        } catch (error) {
           who = null;
+          if (error instanceof VoiceRefusal) refused = error.code;
         }
         if (ws.readyState !== ws.OPEN) return;
         if (!who) {
-          send({ type: 'error', code: 'unauthorized', retryable: false });
+          send({ type: 'error', code: refused, retryable: false });
           end();
           return;
         }
@@ -144,7 +153,8 @@ export function createVoiceRelay(options: VoiceRelayOptions): VoiceRelay {
         total++;
         counted = true;
         clearTimeout(authTimer);
-        const chain = options.providers(request, message, who);
+        const languages = who.languages?.length ? [...who.languages].slice(0, 4) : message.languages;
+        const chain = options.providers(request, { ...message, languages }, who);
         if (!chain.length) {
           send({ type: 'error', code: 'providers_unavailable', retryable: false });
           end();
@@ -153,7 +163,7 @@ export function createVoiceRelay(options: VoiceRelayOptions): VoiceRelay {
         session = new RelaySession({
           start: message,
           providers: chain,
-          context: { userId: who.userId, deviceId: deviceIdFor(options.secret, who.userId), languages: message.languages },
+          context: { userId: who.userId, deviceId: deviceIdFor(options.secret, who.userId), languages },
           send,
           close: end,
           maxMs,

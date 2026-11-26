@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { once } from 'node:events';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { createVoiceRelay, fakeFrame, fakeProvider, FRAME_BYTES, RelaySession, type ServerEvent, type StartMessage } from '../src/server/index.js';
+import { createVoiceRelay, fakeFrame, fakeProvider, FRAME_BYTES, RelaySession, VoiceRefusal, type ServerEvent, type StartMessage, type VoiceUser } from '../src/server/index.js';
 
 const start = (over: Partial<StartMessage> = {}): StartMessage => ({ type: 'start', v: 1, session: 'session-0001', languages: ['zh-CN'], fromMs: 0, nextSeg: 0, ...over });
 const context = { userId: 'u1', deviceId: '1000000000000001', languages: ['zh-CN'] };
@@ -130,16 +130,17 @@ describe('voice relay over WebSocket', () => {
   let server: Server | undefined;
   afterEach(() => server?.close());
 
-  async function serve(authenticate: (token?: string) => string | null, streamsPerUser = 2) {
+  async function serve(authenticate: (token?: string) => string | VoiceUser | null, streamsPerUser = 2) {
     const metrics: unknown[] = [];
+    const chains: StartMessage[] = [];
     const relay = createVoiceRelay({
       path: '/api/voice/stream',
       secret: 'test',
       authenticate: async (_req, token) => {
         const id = authenticate(token);
-        return id ? { userId: id } : null;
+        return typeof id === 'string' ? { userId: id } : id;
       },
-      providers: () => [fakeProvider('a')],
+      providers: (_req, begun) => (chains.push(begun), [fakeProvider('a')]),
       streamsPerUser,
       metric: (m) => metrics.push(m),
     });
@@ -150,7 +151,7 @@ describe('voice relay over WebSocket', () => {
     server.listen(0);
     await once(server, 'listening');
     const port = (server.address() as { port: number }).port;
-    return { url: `ws://127.0.0.1:${port}/api/voice/stream`, metrics };
+    return { url: `ws://127.0.0.1:${port}/api/voice/stream`, metrics, chains };
   }
 
   async function client(url: string, token?: string) {
@@ -188,5 +189,19 @@ describe('voice relay over WebSocket', () => {
     expect(c.events).toEqual([{ type: 'error', code: 'limit', retryable: true }]);
     a.ws.close();
     b.ws.close();
+  });
+
+  it('refuses without consent as forbidden, and uses the account languages over the client languages', async () => {
+    const { url, chains } = await serve((t) => {
+      if (t === 'declined') throw new VoiceRefusal('forbidden');
+      return t === 'good' ? { userId: 'u1', languages: ['en-GB', 'fr-FR'] } : null;
+    });
+    const declined = await client(url, 'declined');
+    await once(declined.ws, 'close');
+    expect(declined.events).toEqual([{ type: 'error', code: 'forbidden', retryable: false }]);
+    const ok = await client(url, 'good');
+    await until(() => ok.events.some((e) => e.type === 'ready'));
+    expect(chains.at(-1)?.languages).toEqual(['en-GB', 'fr-FR']);
+    ok.ws.close();
   });
 });

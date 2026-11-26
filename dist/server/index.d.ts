@@ -1,4 +1,4 @@
-export { attachVoiceRelay, createVoiceRelay, deviceIdFor, type VoiceMetric, type VoiceRelay, type VoiceRelayOptions, type VoiceUser } from './relay.js';
+export { attachVoiceRelay, createVoiceRelay, deviceIdFor, VoiceRefusal, type VoiceMetric, type VoiceRelay, type VoiceRelayOptions, type VoiceUser } from './relay.js';
 export { RelaySession, DEFAULT_TIMING, type SegmentTiming } from './session.js';
 export { Segment } from './segment.js';
 export { countryOf, providerChain, regionOf, type ProviderSet, type SpeechRegion } from './region.js';

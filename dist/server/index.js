@@ -1,4 +1,4 @@
-export { attachVoiceRelay, createVoiceRelay, deviceIdFor } from './relay.js';
+export { attachVoiceRelay, createVoiceRelay, deviceIdFor, VoiceRefusal } from './relay.js';
 export { RelaySession, DEFAULT_TIMING } from './session.js';
 export { Segment } from './segment.js';
 export { countryOf, providerChain, regionOf } from './region.js';

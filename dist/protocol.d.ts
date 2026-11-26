@@ -5,7 +5,7 @@ export declare const FRAME_SAMPLES: number;
 export declare const FRAME_BYTES: number;
 export declare const MAX_SESSION_MS: number;
 export declare const SEND_WINDOW_MS = 30000;
-export type ErrorCode = 'unauthorized' | 'bad_request' | 'limit' | 'providers_unavailable' | 'timeout' | 'server';
+export type ErrorCode = 'unauthorized' | 'forbidden' | 'bad_request' | 'limit' | 'providers_unavailable' | 'timeout' | 'server';
 export interface StartMessage {
     type: 'start';
     v: number;

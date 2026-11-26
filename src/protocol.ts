@@ -8,7 +8,7 @@ export const FRAME_BYTES = FRAME_SAMPLES * 2;
 export const MAX_SESSION_MS = 20 * 60_000;
 export const SEND_WINDOW_MS = 30_000;
 
-export type ErrorCode = 'unauthorized' | 'bad_request' | 'limit' | 'providers_unavailable' | 'timeout' | 'server';
+export type ErrorCode = 'unauthorized' | 'forbidden' | 'bad_request' | 'limit' | 'providers_unavailable' | 'timeout' | 'server';
 
 export interface StartMessage {
   type: 'start';

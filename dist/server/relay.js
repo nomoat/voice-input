@@ -2,6 +2,13 @@ import { createHmac } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { MAX_SESSION_MS, parseClientMessage } from '../protocol.js';
 import { RelaySession } from './session.js';
+export class VoiceRefusal extends Error {
+    code;
+    constructor(code = 'forbidden') {
+        super(`voice ${code}`);
+        this.code = code;
+    }
+}
 export function deviceIdFor(secret, userId) {
     const digest = createHmac('sha256', secret).update(`voice-input:${userId}`).digest('hex').slice(0, 15);
     return ((BigInt(`0x${digest}`) % 9000000000000000n) + 1000000000000000n).toString();
@@ -90,16 +97,19 @@ export function createVoiceRelay(options) {
             start = message;
             void (async () => {
                 let who = null;
+                let refused = 'unauthorized';
                 try {
                     who = await options.authenticate(request, message.token);
                 }
-                catch {
+                catch (error) {
                     who = null;
+                    if (error instanceof VoiceRefusal)
+                        refused = error.code;
                 }
                 if (ws.readyState !== ws.OPEN)
                     return;
                 if (!who) {
-                    send({ type: 'error', code: 'unauthorized', retryable: false });
+                    send({ type: 'error', code: refused, retryable: false });
                     end();
                     return;
                 }
@@ -113,7 +123,8 @@ export function createVoiceRelay(options) {
                 total++;
                 counted = true;
                 clearTimeout(authTimer);
-                const chain = options.providers(request, message, who);
+                const languages = who.languages?.length ? [...who.languages].slice(0, 4) : message.languages;
+                const chain = options.providers(request, { ...message, languages }, who);
                 if (!chain.length) {
                     send({ type: 'error', code: 'providers_unavailable', retryable: false });
                     end();
@@ -122,7 +133,7 @@ export function createVoiceRelay(options) {
                 session = new RelaySession({
                     start: message,
                     providers: chain,
-                    context: { userId: who.userId, deviceId: deviceIdFor(options.secret, who.userId), languages: message.languages },
+                    context: { userId: who.userId, deviceId: deviceIdFor(options.secret, who.userId), languages },
                     send,
                     close: end,
                     maxMs,
