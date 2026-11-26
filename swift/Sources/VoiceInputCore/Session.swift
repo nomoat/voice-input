@@ -203,7 +203,7 @@ public final class VoiceSession {
         let sink = VoiceCaptureSink(
             samples: { [weak self] pcm in self?.samples(pcm) },
             interrupted: { [weak self] in
-                guard let self, self.state.phase == .recording else { return }
+                guard let self, !self.isOver, self.state.phase == .recording else { return }
                 if self.state.mode == .hold || self.state.mode == .undecided {
                     self.finish(stoppedBy: .interrupted)
                     return
@@ -214,7 +214,7 @@ public final class VoiceSession {
                 }
             },
             resumed: { [weak self] in
-                guard let self, self.state.phase == .paused else { return }
+                guard let self, !self.isOver, self.state.phase == .paused else { return }
                 self.update { $0.phase = .recording }
             }
         )
@@ -225,7 +225,7 @@ public final class VoiceSession {
             fail(.microphone)
             return
         }
-        guard state.phase == .starting else {
+        guard state.phase == .starting, !isOver else {
             started.stop()
             return
         }
@@ -390,7 +390,7 @@ public final class VoiceSession {
     private var isOver: Bool { abandoned || state.isOver }
 
     private func samples(_ pcm: [Int16]) {
-        guard state.phase == .recording else { return }
+        guard state.phase == .recording, !isOver else { return }
         var data = carry
         carry = []
         data.append(contentsOf: pcm)
@@ -467,12 +467,13 @@ public final class VoiceSession {
         }
         let nextSeg = c.nextSeg
         opening = Task { [weak self] in
-            await self?.open(fromMs: fromFrame * VoiceProtocol.frameMs, nextSeg: nextSeg)
+            if let self, !self.isOver { await self.open(fromMs: fromFrame * VoiceProtocol.frameMs, nextSeg: nextSeg) }
             self?.opening = nil
         }
     }
 
     private func open(fromMs: Int, nextSeg: Int) async {
+        guard !isOver else { return }
         let endpoint: VoiceEndpoint
         do {
             endpoint = try await options.endpoint()
