@@ -79,7 +79,10 @@ The client keeps, per session:
 
 - **Spool:** every recorded frame, until a contiguous commit covers it.
 - **Journal:** `start`, then `commit`, `rewind`, `finish`, `complete`, `tidy`,
-  `inserted`, `discarded` records.
+  `inserted`, `discarded` records. `complete` is written only when the committed
+  text has words. A session that ends with blank text deletes its journal and
+  spool instead, and a recovery list drops any `complete` session with blank
+  text and no `tidy` (from older builds) that was never inserted or discarded.
 
 Write order: append a `commit` record, then delete spool frames before the
 contiguous commit end. Each word is always in the journal, in the spool, or

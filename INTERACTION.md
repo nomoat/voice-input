@@ -96,6 +96,10 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
   remaining spooled audio through the relay, without the microphone.
   At accessibility text sizes (Swift) the title takes the full width and the
   two buttons sit below it, one above the other.
+- A dictation that ends with no words (silence, `Didn't catch that`) is never
+  kept or offered: the client deletes its journal and audio when it finishes.
+  Empty finished rows left by older builds are removed the next time the list
+  is read. An unfinished dictation with audio but no words yet is still offered.
 - Inserted dictations stay on the device for 7 days, discarded ones for
   24 hours, abandoned ones for 30 days.
 
