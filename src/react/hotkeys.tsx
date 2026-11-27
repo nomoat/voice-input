@@ -18,15 +18,47 @@ const EDITABLE = [
 ].join(', ');
 const CONTROL = 'button, a[href], summary, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
 
+const POINTER_FOCUS_MS = 1000;
+let pointerAt = -Infinity;
+let pointerFocus: Element | null = null;
+let tracking = 0;
+
+const onPointerDown = () => {
+  pointerAt = performance.now();
+};
+const onFocusIn = (e: FocusEvent) => {
+  pointerFocus = performance.now() - pointerAt < POINTER_FOCUS_MS && e.target instanceof Element ? e.target : null;
+};
+const onTab = (e: KeyboardEvent) => {
+  if (e.key === 'Tab') pointerAt = -Infinity;
+};
+
+export function trackPointerFocus(): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+  if (tracking++ === 0) {
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('mousedown', onPointerDown, true);
+    window.addEventListener('keydown', onTab, true);
+    document.addEventListener('focusin', onFocusIn, true);
+  }
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    if (--tracking > 0) return;
+    window.removeEventListener('pointerdown', onPointerDown, true);
+    window.removeEventListener('mousedown', onPointerDown, true);
+    window.removeEventListener('keydown', onTab, true);
+    document.removeEventListener('focusin', onFocusIn, true);
+    pointerFocus = null;
+  };
+}
+
 export function focusTakesKeys(element: Element | null): boolean {
   if (!element || element === element.ownerDocument.body || element === element.ownerDocument.documentElement) return false;
   if (element.closest(EDITABLE)) return true;
   if (!element.matches(CONTROL)) return false;
-  try {
-    return element.matches(':focus-visible');
-  } catch {
-    return true;
-  }
+  return element !== pointerFocus;
 }
 
 function dialogShown(dialog: Element): boolean {
@@ -56,6 +88,7 @@ export function useVoiceHotkeys(options: VoiceHotkeysOptions): void {
     if (!enabled || typeof window === 'undefined') return;
     const id = Symbol('voice-hotkeys');
     owners.push(id);
+    const untrack = trackPointerFocus();
     let held = false;
     const mine = () => owners[owners.length - 1] === id;
     const free = (e: KeyboardEvent) => {
@@ -101,6 +134,7 @@ export function useVoiceHotkeys(options: VoiceHotkeysOptions): void {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
+      untrack();
       if (held) (latest.current.interrupt ?? latest.current.release)();
     };
   }, [enabled]);

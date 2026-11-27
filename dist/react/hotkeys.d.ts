@@ -8,6 +8,7 @@ export interface VoiceHotkeysOptions {
     focus?: () => void;
     scope?: RefObject<HTMLElement | null>;
 }
+export declare function trackPointerFocus(): () => void;
 export declare function focusTakesKeys(element: Element | null): boolean;
 export declare function voiceKeysBlockedByDialog(scope?: HTMLElement | null): boolean;
 export declare function useVoiceHotkeys(options: VoiceHotkeysOptions): void;

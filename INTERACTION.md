@@ -27,7 +27,9 @@ shows `Hold [Space] to speak, press [/] to type` in place of its placeholder.
 Space held = hold to talk, Space tapped = hands-free (tap again to finish),
 `/` = focus the field. A focused field, a control reached with Tab, an open
 dialog, or a modifier key (Cmd, Ctrl, Alt, Shift) keeps the key's usual
-meaning. When the window loses focus during a hold, the hold ends and the text
+meaning. A control or a scroll area that got the focus from a mouse or touch
+press (a click on the message list, a clicked button) does not keep Space: the
+keys still talk. When the window loses focus during a hold, the hold ends and the text
 goes into the field. With several composers on one page, the last one shown
 owns the keys.
 
