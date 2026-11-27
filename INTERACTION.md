@@ -42,7 +42,8 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
   composer's width up to 560 pt.
 - Grows to 40% of the screen height on phones and 320 pt elsewhere, then
   scrolls. It follows the newest text; when the person scrolls up, it stops
-  following and shows `Latest ↓`.
+  following and shows `Latest ↓`. The text area shows at least two lines, and
+  in Swift its height is a whole number of lines, so no line is cut at its top.
 - Committed text in the primary color, interim text in the secondary color.
 - Header: level meter, status, time. Status texts: `Listening`,
   `Connecting… your voice is being recorded`, `Offline · still recording`,
@@ -53,6 +54,9 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
 - At accessibility text sizes (Swift) the panel stacks: the meter and the time
   (never wrapped) on one line, the status below in up to two lines, and
   `Cancel` and `Done` full width one above the other, without the tap hint.
+  The whole panel (status, text and buttons) then scrolls as one, up to 60% of
+  the screen height on phones and 44% (at least 320 pt) elsewhere, following
+  the newest text and the buttons.
 - Read only while recording. Editing happens in the host's field afterwards.
 - Screen readers hear committed text, not interim text.
 

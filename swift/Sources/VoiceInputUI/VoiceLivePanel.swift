@@ -16,6 +16,8 @@ public struct VoiceLivePanel: View {
     @State private var headerHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
     @State private var containerLimit: CGFloat = 0
+    @State private var oneLine: CGFloat = 0
+    @State private var twoLines: CGFloat = 0
     @State private var hintHeight: CGFloat = 0
     @State private var hintFullHeight: CGFloat = 0
     @State private var spoken = ""
@@ -50,8 +52,30 @@ public struct VoiceLivePanel: View {
 
     private var panelLimit: CGFloat {
         if let maxHeight { return maxHeight }
-        if phone { return containerLimit > 0 ? max(120, containerLimit) : 320 }
-        return 320
+        let large = dynamicTypeSize.isAccessibilitySize
+        if phone { return containerLimit > 0 ? max(120, containerLimit * (large ? 1.5 : 1)) : 320 }
+        return large ? max(320, containerLimit * 1.1) : 320
+    }
+
+    private var lineAdvance: CGFloat {
+        oneLine > 0 && twoLines > oneLine ? twoLines - oneLine : 0
+    }
+
+    private func viewport(whole: Bool, textLimit: CGFloat) -> CGFloat {
+        let content = max(44, contentHeight)
+        let advance = lineAdvance
+        if whole {
+            guard content > panelLimit else { return content }
+            guard advance > 0 else { return panelLimit }
+            let fixed = footerHeight + 9
+            let lines = max(2, ((panelLimit - fixed) / advance).rounded(.down))
+            return min(content, lines * advance + fixed)
+        }
+        guard advance > 0 else { return min(content, textLimit) }
+        let limit = max(textLimit, 2 * advance + 5)
+        guard content > limit else { return content }
+        let lines = max(2, ((limit - 5) / advance).rounded(.down))
+        return lines * advance + 5
     }
 
     private func status(_ view: VoiceInputView, _ state: VoiceState) -> String {
@@ -89,24 +113,35 @@ public struct VoiceLivePanel: View {
         let muted: Color = armed ? Color.white.opacity(0.8) : Color.secondary
         let noticeText = notice(view)
         let textLimit = max(44, panelLimit - headerHeight - footerHeight)
+        let whole = dynamicTypeSize.isAccessibilitySize
+        let top = header(view, state, recording: recording, armed: armed, muted: muted)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+        let bottom = footer(view, state, recording: recording, hold: hold, armed: armed, muted: muted, hasNotice: noticeText != nil)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
 
         VStack(spacing: 0) {
-            header(view, state, recording: recording, armed: armed, muted: muted)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+            if !whole { top }
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        transcript(state, notice: noticeText, armed: armed)
-                        if let noticeText, !(state.committed.isEmpty && state.interim.isEmpty) {
-                            Text(noticeText).font(.footnote).foregroundStyle(muted)
+                    VStack(spacing: 0) {
+                        if whole { top }
+                        VStack(alignment: .leading, spacing: 6) {
+                            transcript(state, notice: noticeText, armed: armed)
+                            if let noticeText, !(state.committed.isEmpty && state.interim.isEmpty) {
+                                Text(noticeText).font(.footnote).foregroundStyle(muted)
+                            }
+                            if !whole { Color.clear.frame(height: 1).id(Self.bottomID) }
                         }
-                        Color.clear.frame(height: 1).id(Self.bottomID)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.top, 4)
+                        .padding(.bottom, 10)
+                        if whole {
+                            bottom
+                            Color.clear.frame(height: 1).id(Self.bottomID)
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 4)
-                    .padding(.bottom, 10)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { frame in
                         let grew = abs(frame.height - contentHeight) > 0.5
                         contentHeight = frame.height
@@ -121,7 +156,7 @@ public struct VoiceLivePanel: View {
                 }
                 .coordinateSpace(.named(Self.space))
                 .scrollBounceBehavior(.basedOnSize)
-                .frame(height: min(max(44, contentHeight), textLimit))
+                .frame(height: viewport(whole: whole, textLimit: textLimit))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
                 .overlay(alignment: .bottomTrailing) {
                     if !follow {
@@ -143,8 +178,7 @@ public struct VoiceLivePanel: View {
                 }
             }
 
-            footer(view, state, recording: recording, hold: hold, armed: armed, muted: muted, hasNotice: noticeText != nil)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
+            if !whole { bottom }
         }
         .foregroundStyle(armed ? Color.white : Color.primary)
         .background(armed ? AnyShapeStyle(Color.voiceAccent) : AnyShapeStyle(.background))
@@ -152,6 +186,7 @@ public struct VoiceLivePanel: View {
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.gray.opacity(0.28)))
         .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
         .animation(.easeOut(duration: 0.12), value: armed)
+        .background { lineProbe(state) }
         .background(alignment: .bottom) {
             Color.clear
                 .containerRelativeFrame(.vertical) { length, _ in length * 0.4 }
@@ -162,6 +197,22 @@ public struct VoiceLivePanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(strings.voiceInput)
         .onChange(of: state.committed) { old, new in announce(old, new) }
+    }
+
+    private func lineProbe(_ state: VoiceState) -> some View {
+        let sample = String((state.committed + state.interim).first { !$0.isWhitespace } ?? "A")
+        return ZStack {
+            Text(sample)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { oneLine = $0 }
+            Text(sample + "\n" + sample)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { twoLines = $0 }
+        }
+        .font(.body)
+        .lineSpacing(4)
+        .fixedSize()
+        .hidden()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func transcript(_ state: VoiceState, notice: String?, armed: Bool) -> some View {
@@ -201,6 +252,7 @@ public struct VoiceLivePanel: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 8)
             } else {
                 HStack(spacing: 8) {
                     VoiceLevelMeter(level: state.level, live: recording && !armed)
