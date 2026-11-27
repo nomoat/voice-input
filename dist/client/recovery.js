@@ -19,6 +19,10 @@ export async function listDictations(store, options = {}) {
             await store.remove(session).catch(() => undefined);
             continue;
         }
+        if (summary.completedAt !== undefined && summary.insertedAt === undefined && summary.discardedAt === undefined && !summary.text.trim() && !summary.tidy?.trim()) {
+            await store.remove(session).catch(() => undefined);
+            continue;
+        }
         if (options.target !== undefined && summary.target !== options.target)
             continue;
         const frames = await store.frameEnd(session).catch(() => 0);

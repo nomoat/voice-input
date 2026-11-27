@@ -32,6 +32,10 @@ export async function listDictations(store: VoiceStore, options: { target?: stri
       await store.remove(session).catch(() => undefined);
       continue;
     }
+    if (summary.completedAt !== undefined && summary.insertedAt === undefined && summary.discardedAt === undefined && !summary.text.trim() && !summary.tidy?.trim()) {
+      await store.remove(session).catch(() => undefined);
+      continue;
+    }
     if (options.target !== undefined && summary.target !== options.target) continue;
     const frames = await store.frameEnd(session).catch(() => 0);
     const durationMs = Math.max(summary.finishEndMs ?? 0, summary.contiguousEndMs, frames * FRAME_MS);

@@ -4,7 +4,7 @@ import type { Duplex } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { createVoiceRelay, fakeFrame, fakeProvider, type VoiceRelay } from '../src/server/index.js';
-import { MemoryVoiceStore, VoiceSession, listDictations, summarize, type CaptureSink, type SocketLike, type VoiceSessionOptions } from '../src/client/index.js';
+import { MemoryVoiceStore, VoiceSession, listDictations, summarize, type CaptureSink, type JournalRecord, type SocketLike, type VoiceSessionOptions } from '../src/client/index.js';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function until(check: () => boolean, ms = 5000) {
@@ -218,6 +218,21 @@ describe('VoiceSession', () => {
     expect(await store.sessions()).toEqual([]);
   });
 
+  it('a silent dictation that finishes with no text leaves nothing to recover', async () => {
+    const r = await rig();
+    const store = new MemoryVoiceStore();
+    const { m, factory } = mic();
+    const s = session(r, store, { capture: factory });
+    await s.start('hold');
+    await until(() => s.state.connection === 'online');
+    for (let i = 0; i < 45; i++) m.sink!.samples(samples(i, 0));
+    s.finish();
+    expect((await s.result)?.text).toBe('');
+    await s.flushed();
+    expect(await store.sessions()).toEqual([]);
+    expect(await listDictations(store)).toEqual([]);
+  });
+
   it('a release before the microphone starts ends with empty text', async () => {
     const r = await rig();
     const store = new MemoryVoiceStore();
@@ -230,5 +245,54 @@ describe('VoiceSession', () => {
     await started;
     expect((await s.result)?.text).toBe('');
     expect(stopped).toBe(true);
+  });
+});
+
+describe('recovery list', () => {
+  const start = (session: string): JournalRecord => ({ t: 'start', session, target: 'doc-1', languages: ['zh-CN'], at: 1_000 });
+  const audio = (n: number) => Array.from({ length: n }, (_, i) => new Uint8Array(640).fill(i % 256));
+  const seed = async (store: MemoryVoiceStore, session: string, records: JournalRecord[], frames = 0) => {
+    for (const r of [start(session), ...records]) await store.append(session, r);
+    if (frames) await store.putFrames(session, 0, audio(frames));
+  };
+
+  it('drops a finished dictation with no text (old journals too) and its audio', async () => {
+    const store = new MemoryVoiceStore();
+    await seed(store, 'silent', [{ t: 'commit', seg: 0, text: '', startMs: 0, endMs: 3000 }, { t: 'finish', endMs: 3000, at: 2_000 }, { t: 'complete', at: 3_000 }], 150);
+    await seed(store, 'nothing', [{ t: 'finish', endMs: 1200, at: 2_000 }, { t: 'complete', at: 3_000 }], 60);
+    expect(await listDictations(store, { now: 10_000 })).toEqual([]);
+    expect(await store.sessions()).toEqual([]);
+    expect(store.frames.size).toBe(0);
+  });
+
+  it('drops a finished dictation whose text is only blank', async () => {
+    const store = new MemoryVoiceStore();
+    await seed(store, 'blank', [{ t: 'commit', seg: 0, text: '  ', startMs: 0, endMs: 2000 }, { t: 'commit', seg: 1, text: '\n', startMs: 2000, endMs: 4000 }, { t: 'finish', endMs: 4000, at: 2_000 }, { t: 'complete', at: 3_000 }]);
+    expect(await listDictations(store, { now: 10_000 })).toEqual([]);
+    expect(await store.sessions()).toEqual([]);
+  });
+
+  it('still offers a finished dictation with text that was never inserted', async () => {
+    const store = new MemoryVoiceStore();
+    await seed(store, 'kept', [{ t: 'commit', seg: 0, text: '做一个短片', startMs: 0, endMs: 3000 }, { t: 'finish', endMs: 3000, at: 2_000 }, { t: 'complete', at: 3_000 }]);
+    const list = await listDictations(store, { now: 10_000 });
+    expect(list).toMatchObject([{ session: 'kept', status: 'complete', text: '做一个短片', durationMs: 3000 }]);
+  });
+
+  it('still offers an unfinished dictation with text, and one with audio but no text yet', async () => {
+    const store = new MemoryVoiceStore();
+    await seed(store, 'words', [{ t: 'commit', seg: 0, text: '做一个短片', startMs: 0, endMs: 3000 }], 200);
+    await seed(store, 'audio', [], 100);
+    const list = await listDictations(store, { now: 10_000 });
+    expect(list.map((d) => [d.session, d.status, d.text]).sort()).toEqual([['audio', 'unfinished', ''], ['words', 'unfinished', '做一个短片']]);
+    expect(list.find((d) => d.session === 'audio')!.durationMs).toBeGreaterThan(0);
+  });
+
+  it('keeps inserted and discarded records with no text until they expire', async () => {
+    const store = new MemoryVoiceStore();
+    await seed(store, 'inserted', [{ t: 'finish', endMs: 1200, at: 2_000 }, { t: 'complete', at: 3_000 }, { t: 'inserted', at: 4_000 }]);
+    await seed(store, 'discarded', [{ t: 'discarded', at: 4_000 }]);
+    const list = await listDictations(store, { now: 10_000 });
+    expect(list.map((d) => d.status).sort()).toEqual(['discarded', 'inserted']);
   });
 });

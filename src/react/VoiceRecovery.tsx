@@ -21,7 +21,7 @@ export function useVoiceRecovery(target: string, store: VoiceStore = defaultVoic
   const refresh = useCallback(async () => {
     try {
       const all = await listDictations(store, { target });
-      setItems(all.filter((d) => (d.status === 'unfinished' || d.status === 'complete') && (d.text || d.durationMs > 0)));
+      setItems(all.filter((d) => (d.status === 'unfinished' ? Boolean(d.text.trim()) || d.durationMs > 0 : d.status === 'complete' && Boolean(d.text.trim() || d.tidy?.trim()))));
     } catch {
       setItems([]);
     }
@@ -53,7 +53,8 @@ export function VoiceRecovery({ target, url, token, store = defaultVoiceStore(),
         if (!result) return;
         text = result.text;
       }
-      if (text) await onText(text, { raw: item.text || text, tidied: Boolean(item.tidy), session: item.session, mode: 'restore' });
+      if (!text.trim()) return;
+      await onText(text, { raw: item.text || text, tidied: Boolean(item.tidy), session: item.session, mode: 'restore' });
       await markInserted(store, item.session);
     } finally {
       setBusy(null);

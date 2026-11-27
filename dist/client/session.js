@@ -389,8 +389,11 @@ export class VoiceSession {
             return;
         this.clearTimers();
         this.closeSocket();
-        this.write((store) => store.append(this.id, { t: 'complete', at: this.now() }));
         const text = committedText(this.committed);
+        if (text.trim())
+            this.write((store) => store.append(this.id, { t: 'complete', at: this.now() }));
+        else
+            this.write((store) => store.remove(this.id));
         this.update({ phase: 'done', connection: 'online', committed: text, interim: '', level: 0 });
         this.settle({ session: this.id, text });
     }
