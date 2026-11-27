@@ -65,7 +65,9 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
   `Cancel` and `Done` full width one above the other, without the tap hint.
   The whole panel (status, text and buttons) then scrolls as one, up to 60% of
   the screen height on phones and 44% (at least 320 pt) elsewhere, following
-  the newest text and the buttons.
+  the newest text and the buttons. With `pinsHeader` the meter, the time and
+  the status stay above the scrolling part, and only the text and the buttons
+  scroll (a phone's home composer, where the header would scroll out of view).
 - Read only while recording. Editing happens in the host's field afterwards.
 - Screen readers hear committed text, not interim text.
 

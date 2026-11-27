@@ -130,6 +130,10 @@ VStack {
 }
 ```
 
+At accessibility text sizes the whole live panel scrolls as one by default.
+`VoiceLivePanel(controller: voice, pinsHeader: true)` keeps the meter, the time
+and the status above it, so only the text and the buttons scroll.
+
 The endpoint closure runs for every connection attempt; throw
 `VoiceEndpointError.unauthorized` when the host's credential is refused (three
 in a row fail the session), or `VoiceEndpointError.refused` when the host will

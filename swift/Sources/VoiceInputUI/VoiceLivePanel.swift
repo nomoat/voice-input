@@ -9,6 +9,7 @@ public struct VoiceLivePanel: View {
     private let strings: VoiceStrings
     private let maxHeight: CGFloat?
     private let maxWidth: CGFloat
+    private let pinsHeader: Bool
 
     @State private var follow = true
     @State private var contentHeight: CGFloat = 0
@@ -26,11 +27,12 @@ public struct VoiceLivePanel: View {
     private nonisolated static let bottomID = "voice-input-bottom"
     private nonisolated static let space = "voice-input-scroll"
 
-    public init(controller: VoiceInputController, strings: VoiceStrings = .current, maxHeight: CGFloat? = nil, maxWidth: CGFloat = 560) {
+    public init(controller: VoiceInputController, strings: VoiceStrings = .current, maxHeight: CGFloat? = nil, maxWidth: CGFloat = 560, pinsHeader: Bool = false) {
         self.controller = controller
         self.strings = strings
         self.maxHeight = maxHeight
         self.maxWidth = maxWidth
+        self.pinsHeader = pinsHeader
     }
 
     public var body: some View {
@@ -65,10 +67,11 @@ public struct VoiceLivePanel: View {
         let content = max(44, contentHeight)
         let advance = lineAdvance
         if whole {
-            guard content > panelLimit else { return content }
-            guard advance > 0 else { return panelLimit }
+            let limit = pinsHeader ? panelLimit - headerHeight : panelLimit
+            guard content > limit else { return content }
+            guard advance > 0 else { return max(44, limit) }
             let fixed = footerHeight + 9
-            let lines = max(2, ((panelLimit - fixed) / advance).rounded(.down))
+            let lines = max(2, ((limit - fixed) / advance).rounded(.down))
             return min(content, lines * advance + fixed)
         }
         guard advance > 0 else { return min(content, textLimit) }
@@ -114,18 +117,19 @@ public struct VoiceLivePanel: View {
         let noticeText = notice(view)
         let textLimit = max(44, panelLimit - headerHeight - footerHeight)
         let whole = dynamicTypeSize.isAccessibilitySize
+        let pinned = !whole || pinsHeader
         let top = header(view, state, recording: recording, armed: armed, muted: muted)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
         let bottom = footer(view, state, recording: recording, hold: hold, armed: armed, muted: muted, hasNotice: noticeText != nil)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
 
         VStack(spacing: 0) {
-            if !whole { top }
+            if pinned { top }
 
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 0) {
-                        if whole { top }
+                        if !pinned { top }
                         VStack(alignment: .leading, spacing: 6) {
                             transcript(state, notice: noticeText, armed: armed)
                             if let noticeText, !(state.committed.isEmpty && state.interim.isEmpty) {
