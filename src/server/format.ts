@@ -2,6 +2,7 @@ import { Agent as HttpAgent, request as httpRequest, type IncomingMessage } from
 import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
 
 export const DEFAULT_FORMAT_MS = 1_200;
+export const DEFAULT_WARM_EVERY_MS = 30_000;
 export const GEMINI_FORMAT_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_REPLY_BYTES = 1024 * 1024;
@@ -19,7 +20,15 @@ export interface FormatContext {
   signal?: AbortSignal;
 }
 
-export type SegmentFormatter = (text: string, context: FormatContext) => Promise<string | null>;
+export interface WarmContext {
+  providers: readonly string[];
+  languages: readonly string[];
+}
+
+export interface SegmentFormatter {
+  (text: string, context: FormatContext): Promise<string | null>;
+  warm?: (context: WarmContext) => void;
+}
 
 export interface GeminiFormatterOptions {
   apiKey: string;
@@ -27,6 +36,7 @@ export interface GeminiFormatterOptions {
   endpoint?: string;
   system?: string;
   maxOutputTokens?: number;
+  warmEveryMs?: number;
 }
 
 interface GeminiReply {
@@ -36,11 +46,31 @@ interface GeminiReply {
 let httpAgent: HttpAgent | undefined;
 let httpsAgent: HttpsAgent | undefined;
 
+const AGENT_OPTIONS = { keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 32, maxFreeSockets: 8, scheduling: 'lifo' } as const;
+
+function transport(url: URL) {
+  return url.protocol === 'https:'
+    ? { agent: (httpsAgent ??= new HttpsAgent(AGENT_OPTIONS)), send: httpsRequest }
+    : { agent: (httpAgent ??= new HttpAgent(AGENT_OPTIONS)), send: httpRequest };
+}
+
+function getAndDiscard(url: URL, headers: Record<string, string>): Promise<void> {
+  const { agent, send } = transport(url);
+  return new Promise((resolve, reject) => {
+    const req = send(url, { method: 'GET', agent, headers }, (res) => {
+      res.on('error', reject);
+      res.on('end', () => resolve());
+      res.resume();
+    });
+    req.setTimeout(10_000, () => req.destroy(new Error('Gemini warm-up timed out')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 function postJson(url: URL, payload: unknown, headers: Record<string, string>, signal?: AbortSignal): Promise<unknown> {
   const body = Buffer.from(JSON.stringify(payload));
-  const secure = url.protocol === 'https:';
-  const agent = secure ? (httpsAgent ??= new HttpsAgent({ keepAlive: true, maxSockets: 32 })) : (httpAgent ??= new HttpAgent({ keepAlive: true, maxSockets: 32 }));
-  const send = secure ? httpsRequest : httpRequest;
+  const { agent, send } = transport(url);
   return new Promise((resolve, reject) => {
     const onReply = (res: IncomingMessage) => {
       const chunks: Buffer[] = [];
@@ -76,8 +106,30 @@ function postJson(url: URL, payload: unknown, headers: Record<string, string>, s
 export function geminiFormatter(options: GeminiFormatterOptions): SegmentFormatter {
   const model = options.model ?? GEMINI_FORMAT_MODEL;
   const url = new URL(`${options.endpoint ?? GEMINI_API}/models/${model}:generateContent`);
+  const modelUrl = new URL(`${options.endpoint ?? GEMINI_API}/models/${model}`);
   const system = options.system ?? FORMAT_SYSTEM;
-  return async (text, context) => {
+  const every = options.warmEveryMs ?? DEFAULT_WARM_EVERY_MS;
+  let warming = false;
+  let lastAt = Number.NEGATIVE_INFINITY;
+  const warm = () => {
+    const now = Date.now();
+    if (warming || now - lastAt < every) return;
+    warming = true;
+    lastAt = now;
+    let pending: Promise<void>;
+    try {
+      pending = getAndDiscard(modelUrl, { 'x-goog-api-key': options.apiKey });
+    } catch (error) {
+      pending = Promise.reject(error);
+    }
+    pending
+      .catch(() => undefined)
+      .finally(() => {
+        warming = false;
+      });
+  };
+  const format: SegmentFormatter = async (text, context) => {
+    lastAt = Math.max(lastAt, Date.now());
     const reply = (await postJson(
       url,
       {
@@ -94,4 +146,6 @@ export function geminiFormatter(options: GeminiFormatterOptions): SegmentFormatt
     if (!out) throw new Error('Gemini returned no text');
     return out;
   };
+  format.warm = warm;
+  return format;
 }

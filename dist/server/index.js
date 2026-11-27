@@ -1,6 +1,6 @@
 export { attachVoiceRelay, createVoiceRelay, deviceIdFor, VoiceRefusal } from './relay.js';
 export { RelaySession, DEFAULT_TIMING } from './session.js';
-export { DEFAULT_FORMAT_MS, FORMAT_SYSTEM, GEMINI_FORMAT_MODEL, geminiFormatter } from './format.js';
+export { DEFAULT_FORMAT_MS, DEFAULT_WARM_EVERY_MS, FORMAT_SYSTEM, GEMINI_FORMAT_MODEL, geminiFormatter } from './format.js';
 export { Segment } from './segment.js';
 export { countryOf, isSpeechChoice, providerChain, regionOf, SPEECH_CHOICES, speechChain, speechChoiceFor } from './region.js';
 export { tidyDictation, tidyPrompt, acceptTidy, MAX_TIDY_CHARS } from './tidy.js';

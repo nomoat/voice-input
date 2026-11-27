@@ -1,7 +1,7 @@
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { fakeFrame, fakeProvider, FORMAT_SYSTEM, GEMINI_FORMAT_MODEL, geminiFormatter, RelaySession, type FormatContext, type SegmentFormatter, type ServerEvent, type StartMessage } from '../src/server/index.js';
+import { DEFAULT_WARM_EVERY_MS, fakeFrame, fakeProvider, FORMAT_SYSTEM, GEMINI_FORMAT_MODEL, geminiFormatter, RelaySession, type FormatContext, type SegmentFormatter, type ServerEvent, type StartMessage, type WarmContext } from '../src/server/index.js';
 
 const start: StartMessage = { type: 'start', v: 1, session: 'session-0001', languages: ['zh-CN'], fromMs: 0, nextSeg: 0 };
 const context = { userId: 'u1', deviceId: '1000000000000001', languages: ['zh-CN'] };
@@ -172,18 +172,35 @@ describe('geminiFormatter', () => {
     server?.close();
   });
 
-  const serve = async (reply: (body: unknown) => { status: number; json: unknown }) => {
-    const seen: { url?: string; headers?: IncomingHttpHeaders; body?: unknown } = {};
+  interface Seen {
+    url?: string;
+    headers?: IncomingHttpHeaders;
+    body?: unknown;
+    requests: { method: string; url: string; port: number; key: unknown }[];
+  }
+
+  const serve = async (reply: (body: unknown, method: string) => { status: number; json: unknown; delayMs?: number }) => {
+    const seen: Seen = { requests: [] };
     server = createServer((req, res) => {
       const chunks: Buffer[] = [];
       req.on('data', (c: Buffer) => chunks.push(c));
       req.on('end', () => {
-        seen.url = req.url;
-        seen.headers = req.headers;
-        seen.body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const out = reply(seen.body);
-        res.writeHead(out.status, { 'content-type': 'application/json' });
-        res.end(JSON.stringify(out.json));
+        const raw = Buffer.concat(chunks).toString('utf8');
+        const method = req.method ?? '';
+        seen.requests.push({ method, url: req.url ?? '', port: req.socket.remotePort ?? 0, key: req.headers['x-goog-api-key'] });
+        const body = raw ? JSON.parse(raw) : undefined;
+        if (method === 'POST') {
+          seen.url = req.url;
+          seen.headers = req.headers;
+          seen.body = body;
+        }
+        const out = reply(body, method);
+        const send = () => {
+          res.writeHead(out.status, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(out.json));
+        };
+        if (out.delayMs) setTimeout(send, out.delayMs);
+        else send();
       });
     });
     await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
@@ -191,6 +208,12 @@ describe('geminiFormatter', () => {
   };
 
   const ctx: FormatContext = { provider: 'gemini', languages: ['zh-CN'] };
+  const warmContext: WarmContext = { providers: ['gemini'], languages: ['zh-CN'] };
+  const echo = (body: unknown, method: string) => {
+    if (method === 'GET') return { status: 200, json: { name: `models/${GEMINI_FORMAT_MODEL}` } };
+    const text = (body as { contents: { parts: { text: string }[] }[] }).contents[0]!.parts[0]!.text;
+    return { status: 200, json: { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: text.toUpperCase() }] } }] } };
+  };
 
   it('asks the fast model with the short-segment prompt, minimal thinking and temperature 0', async () => {
     const { endpoint, seen } = await serve(() => ({ status: 200, json: { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '我想做一个三十秒的短片。' }] } }] } }));
@@ -227,5 +250,130 @@ describe('geminiFormatter', () => {
     const pending = geminiFormatter({ apiKey: 'k', endpoint })('嗯', { ...ctx, signal: controller.signal });
     setTimeout(() => controller.abort(), 20);
     await expect(pending).rejects.toThrow();
+  });
+
+  it('warm-up GETs the model with the key, and the first clean-up reuses that connection', async () => {
+    const { endpoint, seen } = await serve(echo);
+    const format = geminiFormatter({ apiKey: 'test-key', endpoint });
+    expect(format.warm!(warmContext)).toBeUndefined();
+    await until(() => seen.requests.length === 1);
+    await wait(20);
+    expect(await format('word0 word1 word2', ctx)).toBe('WORD0 WORD1 WORD2');
+    expect(seen.requests.map((r) => [r.method, r.url, r.key])).toEqual([
+      ['GET', `/v1beta/models/${GEMINI_FORMAT_MODEL}`, 'test-key'],
+      ['POST', `/v1beta/models/${GEMINI_FORMAT_MODEL}:generateContent`, 'test-key'],
+    ]);
+    expect(seen.requests[1]!.port).toBe(seen.requests[0]!.port);
+  });
+
+  it('warm-up runs at most once while one is in flight', async () => {
+    const { endpoint, seen } = await serve(() => ({ status: 200, json: {}, delayMs: 200 }));
+    const format = geminiFormatter({ apiKey: 'k', endpoint, warmEveryMs: 0 });
+    format.warm!(warmContext);
+    format.warm!(warmContext);
+    format.warm!(warmContext);
+    await wait(120);
+    expect(seen.requests).toHaveLength(1);
+    await wait(250);
+    format.warm!(warmContext);
+    await until(() => seen.requests.length === 2);
+  });
+
+  it('warm-up runs at most once per warmEveryMs (default 30 s), and a recent clean-up counts as warm', async () => {
+    expect(DEFAULT_WARM_EVERY_MS).toBe(30_000);
+    const { endpoint, seen } = await serve(echo);
+    const fresh = geminiFormatter({ apiKey: 'k', endpoint });
+    fresh.warm!(warmContext);
+    await until(() => seen.requests.length === 1);
+    await wait(50);
+    fresh.warm!(warmContext);
+    await wait(50);
+    expect(seen.requests).toHaveLength(1);
+
+    const used = geminiFormatter({ apiKey: 'k', endpoint });
+    await used('word0 word1', ctx);
+    used.warm!(warmContext);
+    await wait(50);
+    expect(seen.requests.map((r) => r.method)).toEqual(['GET', 'POST']);
+
+    const short = geminiFormatter({ apiKey: 'k', endpoint, warmEveryMs: 150 });
+    short.warm!(warmContext);
+    await until(() => seen.requests.length === 3);
+    await wait(250);
+    short.warm!(warmContext);
+    await until(() => seen.requests.length === 4);
+  });
+
+  it('a failing warm-up never throws: refused connection or HTTP error', async () => {
+    const closed = createServer();
+    await new Promise<void>((resolve) => closed.listen(0, '127.0.0.1', resolve));
+    const port = (closed.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => closed.close(() => resolve()));
+    const refused = geminiFormatter({ apiKey: 'k', endpoint: `http://127.0.0.1:${port}/v1beta` });
+    expect(() => refused.warm!(warmContext)).not.toThrow();
+
+    const { endpoint, seen } = await serve(() => ({ status: 500, json: { error: { message: 'busy' } } }));
+    const failing = geminiFormatter({ apiKey: 'k', endpoint });
+    expect(() => failing.warm!(warmContext)).not.toThrow();
+    await until(() => seen.requests.length === 1);
+    await wait(100);
+  });
+
+  it('a session warms the formatter once when it starts, right after ready and before any commit', async () => {
+    const calls: { context: WarmContext; events: string[] }[] = [];
+    const make = () => {
+      const events: ServerEvent[] = [];
+      let closed = false;
+      const format: SegmentFormatter = async (text) => text.toUpperCase();
+      format.warm = (warm) => {
+        calls.push({ context: warm, events: events.map((e) => e.type) });
+      };
+      const session = new RelaySession({ start, providers: [fakeProvider('gemini', { text: longText }), fakeProvider('doubao')], context, send: (e) => events.push(e), close: () => { closed = true; }, timing, format });
+      return { session, closed: () => closed };
+    };
+    const first = make();
+    expect(calls).toEqual([{ context: { providers: ['gemini', 'doubao'], languages: ['zh-CN'] }, events: ['ready'] }]);
+    speak(first.session, 2);
+    first.session.finish();
+    await until(() => first.closed());
+    expect(calls).toHaveLength(1);
+    make().session.cancel();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a warm-up that throws does not affect the session', async () => {
+    const format: SegmentFormatter = async (text) => text.toUpperCase();
+    format.warm = () => {
+      throw new Error('no network');
+    };
+    const h = harness(format);
+    speak(h.session, 1);
+    h.session.finish();
+    await until(() => h.closed());
+    expect(spoken(h.events)[0]!.text).toMatch(/^WORD0 /);
+    expect(h.events.at(-1)?.type).toBe('done');
+  });
+
+  it('with geminiFormatter the session warms first and then cleans; without format it calls nothing', async () => {
+    const { endpoint, seen } = await serve(echo);
+    const format = geminiFormatter({ apiKey: 'k', endpoint, warmEveryMs: 0 });
+
+    const events: ServerEvent[] = [];
+    let closed = false;
+    const plain = new RelaySession({ start, providers: [fakeProvider('gemini', { text: longText })], context, send: (e) => events.push(e), close: () => { closed = true; }, timing });
+    speak(plain, 1);
+    plain.finish();
+    await until(() => closed);
+    expect(seen.requests).toHaveLength(0);
+
+    const h = harness(format);
+    await until(() => seen.requests.length === 1);
+    speak(h.session, 1);
+    h.session.finish();
+    await until(() => h.closed());
+    expect(seen.requests[0]!.method).toBe('GET');
+    expect(seen.requests.slice(1).every((r) => r.method === 'POST')).toBe(true);
+    expect(seen.requests.length).toBeGreaterThan(1);
+    expect(spoken(h.events)[0]!.text).toMatch(/^WORD0 /);
   });
 });

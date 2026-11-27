@@ -70,6 +70,13 @@ export class RelaySession {
     this.maxOpen = options.maxOpenSegments ?? 4;
     if (options.format) this.stats.format = { used: 0, skipped: 0, fallback: 0, maxMs: 0 };
     options.send({ type: 'ready', maxMs: this.maxMs });
+    if (options.format?.warm) {
+      try {
+        options.format.warm({ providers: options.providers.map((p) => p.name), languages: options.context.languages });
+      } catch {
+        undefined;
+      }
+    }
   }
 
   audio(data: Buffer): void {

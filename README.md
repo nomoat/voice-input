@@ -66,12 +66,26 @@ heard it:
 
 ```ts
 const clean = geminiFormatter({ apiKey: process.env.GEMINI_API_KEY! });
+const format: SegmentFormatter = (text, ctx) => (ctx.provider === 'gemini' ? clean(text, ctx) : Promise.resolve(null));
+format.warm = (ctx) => { if (ctx.providers[0] === 'gemini') clean.warm?.(ctx); };
 createVoiceRelay({
   // …
-  format: (text, ctx) => (ctx.provider === 'gemini' ? clean(text, ctx) : Promise.resolve(null)),
+  format,
   formatMs: 1200,
 });
 ```
+
+A cold TLS connection to Gemini takes about 0.7 s, which uses up most of the
+1.2 s budget. So a formatter can have `warm(ctx)`: the session calls it once
+right after `ready`, with `{ providers, languages }` (the speech services in
+order), and the first commit comes seconds later on a warm connection.
+`geminiFormatter`'s `warm` sends `GET models/{model}` with the key (no user
+text) and ignores its answer. It never throws, runs at most once while one is
+in flight, and at most once per `warmEveryMs` (default 30 s) after a warm-up
+or a clean-up. A host that wraps the formatter forwards `warm`, as above;
+warming only when Gemini leads the chain sends nothing to Google for a Doubao
+user's session. Idle connections stay open until Google closes them, after a
+few minutes; the warm-up at each session start covers that.
 
 For Doubao, `doubao({ apiKey, smooth: true })` asks Volcengine to remove
 fillers and repeats itself (`enable_ddc`), with no extra call. The session
