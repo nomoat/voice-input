@@ -23,14 +23,15 @@ Client ──voice/v1 (wss)──► your server: voice relay ──► Doubao �
 ## Server (Node)
 
 ```ts
-import { createVoiceRelay, countryOf, regionOf, providerChain, doubaoIme, geminiLive } from '@nomoat/voice-input/server';
+import { createVoiceRelay, speechChain, speechChoiceFor, doubao, doubaoIme, geminiLive } from '@nomoat/voice-input/server';
 
 const relay = createVoiceRelay({
   path: '/api/voice/stream',
   secret: process.env.VOICE_SECRET!,                  // derives stable per-user device ids
-  authenticate: async (req, token) => verify(token),  // → { userId } | null
-  providers: (req, start) =>
-    providerChain(regionOf(countryOf(req), start.languages), {
+  authenticate: async (req, token) => verify(token),  // → { userId, speech?: 'doubao' | 'gemini' } | null
+  providers: (req, start, user) =>
+    speechChain(user.speech ?? speechChoiceFor(start.languages), {
+      doubao: doubao({ apiKey: process.env.DOUBAO_SPEECH_KEY }),
       doubaoIme: doubaoIme(),
       gemini: process.env.GEMINI_API_KEY ? geminiLive({ apiKey: process.env.GEMINI_API_KEY }) : undefined,
     }),
@@ -39,8 +40,19 @@ const relay = createVoiceRelay({
 server.on('upgrade', (req, socket, head) => { if (!relay.handleUpgrade(req, socket, head)) socket.destroy(); });
 ```
 
-`providerChain` puts Doubao first for mainland China (by the edge's country
-header, or the first language when there is none) and Gemini first elsewhere.
+Each person chooses a speech service, `doubao` or `gemini`. Store the choice
+with the account: set it once when the account is made, with
+`speechChoiceFor(languages)` (a Chinese first language picks Doubao, any other
+Gemini), and change it only when the person does. `speechChain` puts the
+chosen service first and keeps the others as fallbacks, so a failed service
+loses no words. `providerChain(regionOf(countryOf(req), languages), set)`
+chooses by the edge's country header instead.
+
+`doubao({ apiKey })` is Volcengine's streaming speech recognition
+(豆包语音, `bigmodel_async`), with an API Key from the 豆包语音 console. It
+takes `resourceId` (default `volc.seedasr.sauc.duration`, ASR 2.0) and
+`hotwords`. The key stays on your server.
+
 `tidyDictation(request, complete)` cleans a long transcript with your own
 model call and refuses outputs that drop or add content.
 
@@ -65,6 +77,17 @@ import { VoiceButton, chineseVoiceStrings } from '@nomoat/voice-input/react';
   }}
 />
 ```
+
+With `hotkeys`, Space and `/` work while no text field or control has the
+focus: hold Space to talk, tap Space for hands-free, press `/` to type.
+
+```tsx
+<VoiceButton config={config} hotkeys={{ focus: () => fieldRef.current?.focus(), scope: composerRef }} />
+{!focused && !draft && keyboard && <VoiceKeyHint strings={strings} />}  // keyboard = useKeyboardDevice()
+```
+
+The last mounted composer with `hotkeys` owns the keys. `useVoiceHotkeys`
+gives the same keys to a host with its own gestures.
 
 `useVoiceButton` gives the same gestures for your own button component;
 `VoicePanelPortal` renders the live panel; `VoiceRecovery` shows unfinished

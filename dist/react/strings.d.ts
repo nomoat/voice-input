@@ -30,6 +30,8 @@ export interface VoiceStrings {
     discard: string;
     showOriginal: string;
     showTidied: string;
+    keyHint: string;
+    spaceKey: string;
 }
 export declare const englishVoiceStrings: VoiceStrings;
 export declare const chineseVoiceStrings: VoiceStrings;

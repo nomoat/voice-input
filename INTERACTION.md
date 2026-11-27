@@ -22,6 +22,15 @@ everything else into the field.
 Keyboard (Web/Desktop), on the focused button: Space held = hold to talk,
 Space or Enter tapped = hands-free, Escape = cancel, Cmd/Ctrl+Enter = Done.
 
+Keyboard (Web/Desktop), with no text field or control focused: the composer
+shows `Hold [Space] to speak, press [/] to type` in place of its placeholder.
+Space held = hold to talk, Space tapped = hands-free (tap again to finish),
+`/` = focus the field. A focused field, a control reached with Tab, an open
+dialog, or a modifier key (Cmd, Ctrl, Alt, Shift) keeps the key's usual
+meaning. When the window loses focus during a hold, the hold ends and the text
+goes into the field. With several composers on one page, the last one shown
+owns the keys.
+
 Hosts that start a hold from a long press on an empty text field (Impo) wait
 350 ms before starting, so a tap still focuses the field.
 

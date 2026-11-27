@@ -3,9 +3,11 @@ import type { Duplex } from 'node:stream';
 import { type StartMessage } from '../protocol.js';
 import { type RelaySessionStats, type SegmentTiming } from './session.js';
 import type { ProviderSpec } from './providers/types.js';
+import type { SpeechChoice } from './region.js';
 export interface VoiceUser {
     userId: string;
     languages?: readonly string[];
+    speech?: SpeechChoice;
 }
 export declare class VoiceRefusal extends Error {
     readonly code: 'forbidden' | 'unauthorized';

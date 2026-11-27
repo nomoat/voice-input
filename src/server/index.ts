@@ -1,8 +1,9 @@
 export { attachVoiceRelay, createVoiceRelay, deviceIdFor, VoiceRefusal, type VoiceMetric, type VoiceRelay, type VoiceRelayOptions, type VoiceUser } from './relay.js';
 export { RelaySession, DEFAULT_TIMING, type SegmentTiming } from './session.js';
 export { Segment } from './segment.js';
-export { countryOf, providerChain, regionOf, type ProviderSet, type SpeechRegion } from './region.js';
+export { countryOf, isSpeechChoice, providerChain, regionOf, SPEECH_CHOICES, speechChain, speechChoiceFor, type ProviderSet, type SpeechChoice, type SpeechRegion } from './region.js';
 export { tidyDictation, tidyPrompt, acceptTidy, MAX_TIDY_CHARS, type TidyPrompt, type TidyRequest } from './tidy.js';
+export { doubao, DoubaoAsrProvider, doubaoFrame, parseDoubaoFrame, DOUBAO_ASR_ENDPOINT, DOUBAO_ASR_RESOURCE, type DoubaoAsrOptions, type DoubaoResponse } from './providers/doubao.js';
 export { doubaoIme, DoubaoImeProvider } from './providers/doubao-ime.js';
 export { wetype, WeTypeProvider, type WeTypeKeys } from './providers/wetype.js';
 export { geminiLive, GeminiLiveProvider, GEMINI_TRANSCRIBE_MODEL } from './providers/gemini-live.js';

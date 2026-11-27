@@ -13,9 +13,19 @@ export function regionOf(country, languages) {
         return country === 'CN' ? 'cn' : 'global';
     return languages[0]?.toLowerCase().startsWith('zh') ? 'cn' : 'global';
 }
-export function providerChain(region, set) {
-    const order = region === 'cn'
+export const SPEECH_CHOICES = ['doubao', 'gemini'];
+export function isSpeechChoice(value) {
+    return value === 'doubao' || value === 'gemini';
+}
+export function speechChoiceFor(languages) {
+    return languages[0]?.trim().toLowerCase().startsWith('zh') ? 'doubao' : 'gemini';
+}
+export function speechChain(choice, set) {
+    const order = choice === 'doubao'
         ? [set.doubao, set.doubaoIme, set.wetype, set.gemini]
         : [set.gemini, set.doubao, set.doubaoIme];
     return order.filter((p) => Boolean(p));
+}
+export function providerChain(region, set) {
+    return speechChain(region === 'cn' ? 'doubao' : 'gemini', set);
 }

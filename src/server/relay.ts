@@ -5,10 +5,12 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { MAX_SESSION_MS, parseClientMessage, type ServerEvent, type StartMessage } from '../protocol.js';
 import { RelaySession, type RelaySessionStats, type SegmentTiming } from './session.js';
 import type { ProviderSpec } from './providers/types.js';
+import type { SpeechChoice } from './region.js';
 
 export interface VoiceUser {
   userId: string;
   languages?: readonly string[];
+  speech?: SpeechChoice;
 }
 
 export class VoiceRefusal extends Error {

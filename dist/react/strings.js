@@ -30,6 +30,8 @@ export const englishVoiceStrings = {
     discard: 'Discard',
     showOriginal: 'Show original',
     showTidied: 'Show tidied',
+    keyHint: 'Hold {space} to speak, press {slash} to type',
+    spaceKey: 'Space',
 };
 export const chineseVoiceStrings = {
     voiceInput: '语音输入',
@@ -63,6 +65,8 @@ export const chineseVoiceStrings = {
     discard: '丢弃',
     showOriginal: '显示原文',
     showTidied: '显示整理后',
+    keyHint: '按住 {space} 说话，按 {slash} 打字',
+    spaceKey: '空格',
 };
 export function voiceStrings(locale) {
     return locale?.toLowerCase().startsWith('zh') ? chineseVoiceStrings : englishVoiceStrings;

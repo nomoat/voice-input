@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { isHold, move, press, release, TAP_MS, type PressTrack } from '../client/gesture.js';
+import { useVoiceHotkeys } from './hotkeys.js';
 import { LivePanel, type LivePanelProps } from './LivePanel.js';
 import { englishVoiceStrings, type VoiceStrings } from './strings.js';
 import { useVoiceInput, type VoiceInputConfig } from './useVoiceInput.js';
@@ -16,6 +17,12 @@ export interface VoiceButtonProps {
   icon?: ReactNode;
   stopIcon?: ReactNode;
   size?: number;
+  hotkeys?: VoiceButtonHotkeys;
+}
+
+export interface VoiceButtonHotkeys {
+  focus?: () => void;
+  scope?: RefObject<HTMLElement | null>;
 }
 
 export function MicIcon({ size = 16 }: { size?: number }) {
@@ -46,7 +53,7 @@ export interface VoiceButtonHandlers {
   onContextMenu: (e: { preventDefault(): void }) => void;
 }
 
-export function useVoiceButton(config: VoiceInputConfig, disabled = false) {
+export function useVoiceButton(config: VoiceInputConfig, disabled = false, hotkeys?: VoiceButtonHotkeys) {
   const voice = useVoiceInput(config);
   const track = useRef<PressTrack | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -151,6 +158,21 @@ export function useVoiceButton(config: VoiceInputConfig, disabled = false) {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [view.open, voice]);
 
+  useVoiceHotkeys({
+    enabled: Boolean(hotkeys) && !disabled,
+    press: () => down(0, 0),
+    release: up,
+    interrupt: () => {
+      clearHold();
+      if (!track.current) return;
+      track.current = null;
+      voice.armCancel(false);
+      voice.session.current?.finish('interrupted');
+    },
+    ...(hotkeys?.focus ? { focus: hotkeys.focus } : {}),
+    ...(hotkeys?.scope ? { scope: hotkeys.scope } : {}),
+  });
+
   useEffect(() => clearHold, []);
 
   return { voice, view, active, handlers };
@@ -171,8 +193,8 @@ export function VoicePanelPortal({ voice, strings, anchor, Button }: VoicePanelP
   );
 }
 
-export function VoiceButton({ config, strings = englishVoiceStrings, anchor, className, activeClassName, style, disabled, icon, stopIcon, size = 16 }: VoiceButtonProps) {
-  const { voice, active, handlers } = useVoiceButton(config, disabled);
+export function VoiceButton({ config, strings = englishVoiceStrings, anchor, className, activeClassName, style, disabled, icon, stopIcon, size = 16, hotkeys }: VoiceButtonProps) {
+  const { voice, active, handlers } = useVoiceButton(config, disabled, hotkeys);
   const buttonRef = useRef<HTMLButtonElement>(null);
   return (
     <>

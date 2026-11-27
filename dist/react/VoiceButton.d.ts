@@ -13,6 +13,11 @@ export interface VoiceButtonProps {
     icon?: ReactNode;
     stopIcon?: ReactNode;
     size?: number;
+    hotkeys?: VoiceButtonHotkeys;
+}
+export interface VoiceButtonHotkeys {
+    focus?: () => void;
+    scope?: RefObject<HTMLElement | null>;
 }
 export declare function MicIcon({ size }: {
     size?: number;
@@ -31,7 +36,7 @@ export interface VoiceButtonHandlers {
         preventDefault(): void;
     }) => void;
 }
-export declare function useVoiceButton(config: VoiceInputConfig, disabled?: boolean): {
+export declare function useVoiceButton(config: VoiceInputConfig, disabled?: boolean, hotkeys?: VoiceButtonHotkeys): {
     voice: {
         view: import("./useVoiceInput.js").VoiceInputView;
         active: boolean;
@@ -54,4 +59,4 @@ export interface VoicePanelPortalProps {
     Button?: LivePanelProps['Button'];
 }
 export declare function VoicePanelPortal({ voice, strings, anchor, Button }: VoicePanelPortalProps): import("react").ReactPortal | null;
-export declare function VoiceButton({ config, strings, anchor, className, activeClassName, style, disabled, icon, stopIcon, size }: VoiceButtonProps): import("react").JSX.Element;
+export declare function VoiceButton({ config, strings, anchor, className, activeClassName, style, disabled, icon, stopIcon, size, hotkeys }: VoiceButtonProps): import("react").JSX.Element;

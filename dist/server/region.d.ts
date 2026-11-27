@@ -9,4 +9,9 @@ export interface ProviderSet {
     wetype?: ProviderSpec | undefined;
     gemini?: ProviderSpec | undefined;
 }
+export type SpeechChoice = 'doubao' | 'gemini';
+export declare const SPEECH_CHOICES: readonly SpeechChoice[];
+export declare function isSpeechChoice(value: unknown): value is SpeechChoice;
+export declare function speechChoiceFor(languages: readonly string[]): SpeechChoice;
+export declare function speechChain(choice: SpeechChoice, set: ProviderSet): ProviderSpec[];
 export declare function providerChain(region: SpeechRegion, set: ProviderSet): ProviderSpec[];

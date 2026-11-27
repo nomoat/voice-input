@@ -26,9 +26,25 @@ export interface ProviderSet {
   gemini?: ProviderSpec | undefined;
 }
 
-export function providerChain(region: SpeechRegion, set: ProviderSet): ProviderSpec[] {
-  const order = region === 'cn'
+export type SpeechChoice = 'doubao' | 'gemini';
+
+export const SPEECH_CHOICES: readonly SpeechChoice[] = ['doubao', 'gemini'];
+
+export function isSpeechChoice(value: unknown): value is SpeechChoice {
+  return value === 'doubao' || value === 'gemini';
+}
+
+export function speechChoiceFor(languages: readonly string[]): SpeechChoice {
+  return languages[0]?.trim().toLowerCase().startsWith('zh') ? 'doubao' : 'gemini';
+}
+
+export function speechChain(choice: SpeechChoice, set: ProviderSet): ProviderSpec[] {
+  const order = choice === 'doubao'
     ? [set.doubao, set.doubaoIme, set.wetype, set.gemini]
     : [set.gemini, set.doubao, set.doubaoIme];
   return order.filter((p): p is ProviderSpec => Boolean(p));
+}
+
+export function providerChain(region: SpeechRegion, set: ProviderSet): ProviderSpec[] {
+  return speechChain(region === 'cn' ? 'doubao' : 'gemini', set);
 }
