@@ -9,6 +9,26 @@ const color = {
     accent: 'var(--voice-accent, #e5484d)',
     danger: 'var(--voice-danger, #e5484d)',
 };
+function anchorBox(el) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 || rect.height > 0)
+        return { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width };
+    let top = Infinity;
+    let bottom = -Infinity;
+    let left = Infinity;
+    let right = -Infinity;
+    for (const child of Array.from(el.children)) {
+        const r = child.getBoundingClientRect();
+        if (r.width <= 0 && r.height <= 0)
+            continue;
+        top = Math.min(top, r.top);
+        bottom = Math.max(bottom, r.bottom);
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+    }
+    return top === Infinity ? null : { top, bottom, left, width: right - left };
+}
+const MIN_PANEL = 120;
 function usePlacement(anchor, open) {
     const [style, setStyle] = useState({ display: 'none' });
     useLayoutEffect(() => {
@@ -18,14 +38,26 @@ function usePlacement(anchor, open) {
             const el = anchor.current;
             if (!el)
                 return;
-            const rect = el.getBoundingClientRect();
             const vw = window.innerWidth;
-            const width = Math.min(vw - 16, Math.max(280, Math.min(rect.width, 560)));
-            const left = Math.max(8, Math.min(rect.left + (rect.width - width) / 2, vw - width - 8));
-            const bottom = Math.max(8, window.innerHeight - rect.top + 8);
-            const roomAbove = rect.top - 16;
-            const maxHeight = Math.max(120, Math.min(roomAbove, vw < 640 ? window.innerHeight * 0.4 : 320));
-            setStyle({ position: 'fixed', left, width, bottom, maxHeight });
+            const vh = window.innerHeight;
+            const cap = vw < 640 ? vh * 0.4 : 320;
+            const box = anchorBox(el);
+            const visible = box && box.bottom > 0 && box.top < vh;
+            if (!box || !visible) {
+                const width = Math.min(vw - 16, 560);
+                setStyle({ position: 'fixed', left: (vw - width) / 2, width, bottom: 16, maxHeight: Math.max(MIN_PANEL, Math.min(cap, vh - 32)) });
+                return;
+            }
+            const width = Math.min(vw - 16, Math.max(280, Math.min(box.width, 560)));
+            const left = Math.max(8, Math.min(box.left + (box.width - width) / 2, vw - width - 8));
+            const roomAbove = box.top - 16;
+            const roomBelow = vh - box.bottom - 16;
+            if (roomAbove < MIN_PANEL && roomBelow > roomAbove) {
+                setStyle({ position: 'fixed', left, width, top: Math.max(8, box.bottom + 8), maxHeight: Math.max(MIN_PANEL, Math.min(roomBelow, cap)) });
+                return;
+            }
+            const bottom = Math.max(8, vh - box.top + 8);
+            setStyle({ position: 'fixed', left, width, bottom, maxHeight: Math.max(MIN_PANEL, Math.min(roomAbove, cap)) });
         };
         place();
         window.addEventListener('resize', place);
