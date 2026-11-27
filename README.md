@@ -50,8 +50,10 @@ chooses by the edge's country header instead.
 
 `doubao({ apiKey })` is Volcengine's streaming speech recognition
 (豆包语音, `bigmodel_async`), with an API Key from the 豆包语音 console. It
-takes `resourceId` (default `volc.seedasr.sauc.duration`, ASR 2.0) and
-`hotwords`. The key stays on your server.
+takes `resourceId` (default `volc.seedasr.sauc.duration`, ASR 2.0). The key
+stays on your server. Leave `hotwords` unset: in tests on 2026-11-27, any
+hotword made `bigmodel_async` drop the words it could not match, and a product
+name gave no gain.
 
 `tidyDictation(request, complete)` cleans a long transcript with your own
 model call and refuses outputs that drop or add content.
