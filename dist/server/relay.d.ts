@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { type StartMessage } from '../protocol.js';
+import type { SegmentFormatter } from './format.js';
 import { type RelaySessionStats, type SegmentTiming } from './session.js';
 import type { ProviderSpec } from './providers/types.js';
 import type { SpeechChoice } from './region.js';
@@ -30,6 +31,8 @@ export interface VoiceRelayOptions {
     maxMs?: number;
     timing?: Partial<SegmentTiming>;
     metric?: (metric: VoiceMetric) => void;
+    format?: SegmentFormatter;
+    formatMs?: number;
 }
 export interface VoiceRelay {
     handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean;

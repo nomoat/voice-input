@@ -55,6 +55,29 @@ stays on your server. Leave `hotwords` unset: in tests on 2026-11-27, any
 hotword made `bigmodel_async` drop the words it could not match, and a product
 name gave no gain.
 
+Pass `format` to clean each segment's final text before its `commit`
+(punctuation, fillers, self-corrections; PROTOCOL.md, Segment clean-up). It
+gets the text and `{ provider, languages, signal }`, and returns the cleaned
+text, or `null` to leave it. `geminiFormatter({ apiKey })` calls
+`gemini-3.5-flash-lite` with the short-segment prompt `FORMAT_SYSTEM`
+(minimal thinking, temperature 0, a keep-alive connection); about 0.5–0.7 s
+per segment from a server. Clean text only with the service that already
+heard it:
+
+```ts
+const clean = geminiFormatter({ apiKey: process.env.GEMINI_API_KEY! });
+createVoiceRelay({
+  // …
+  format: (text, ctx) => (ctx.provider === 'gemini' ? clean(text, ctx) : Promise.resolve(null)),
+  formatMs: 1200,
+});
+```
+
+For Doubao, `doubao({ apiKey, smooth: true })` asks Volcengine to remove
+fillers and repeats itself (`enable_ddc`), with no extra call. The session
+metric counts `format.used`, `format.skipped`, `format.fallback` and
+`format.maxMs`.
+
 `tidyDictation(request, complete)` cleans a long transcript with your own
 model call and refuses outputs that drop or add content.
 

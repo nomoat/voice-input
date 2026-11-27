@@ -67,6 +67,7 @@ export interface DoubaoAsrOptions {
   resourceId?: string;
   endpoint?: string;
   hotwords?: readonly string[];
+  smooth?: boolean;
   connectMs?: number;
   finishMs?: number;
 }
@@ -99,6 +100,7 @@ export class DoubaoAsrProvider extends EventEmitter implements SpeechProvider {
       this.ws = ws;
       ws.on('open', () => {
         const request: Record<string, unknown> = { model_name: 'bigmodel', enable_itn: true, enable_punc: true };
+        if (this.options.smooth) request.enable_ddc = true;
         if (this.options.hotwords?.length) request.corpus = { context: JSON.stringify({ hotwords: this.options.hotwords.map((word) => ({ word })) }) };
         this.send(doubaoFrame(FULL_REQUEST, 0, JSON_SERIALIZATION, Buffer.from(JSON.stringify({
           user: { uid: this.deviceId },

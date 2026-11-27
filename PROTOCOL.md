@@ -29,7 +29,7 @@ speech service directly.
 |---|---|
 | `{"type":"ready","maxMs":1200000}` | Authenticated. Audio can flow. |
 | `{"type":"interim","seg":7,"text":"…"}` | Current guess for segment 7. Replaces the earlier guess for that segment. |
-| `{"type":"commit","seg":7,"text":"…","startMs":181000,"endMs":192300}` | Final text for segment 7. Segments are contiguous: `startMs` of segment n+1 equals `endMs` of segment n. Commits can arrive out of order. |
+| `{"type":"commit","seg":7,"text":"…","startMs":181000,"endMs":192300}` | Final text for segment 7. Segments are contiguous: `startMs` of segment n+1 equals `endMs` of segment n. Commits can arrive out of order. The server may have cleaned the text (see Segment clean-up); interim text is never cleaned. |
 | `{"type":"ack","ms":192300}` | Audio received up to this position. |
 | `{"type":"done","nextSeg":8}` | Every segment is committed. The server closes the socket. |
 | `{"type":"error","code":"…","retryable":true}` | `unauthorized`, `forbidden` (signed in but not allowed, for example no AI consent), `bad_request`, `limit`, `providers_unavailable`, `timeout`, `server`. The server closes the socket after an error. |
@@ -58,6 +58,20 @@ disconnect or connect timeout, the relay replays that segment's audio (at most
 60 s) to the next service. If a service never sends its final result, the
 latest text commits after the service's finish timeout. If every service
 fails, the session ends with `providers_unavailable` (retryable).
+
+## Segment clean-up (server)
+
+A relay with a `format` function cleans each segment's final text before its
+`commit`: punctuation, filler words, false starts and self-corrections. The
+client sees only the cleaned commit and needs no change.
+
+- The clean-up has `formatMs` (default 1200 ms) per segment. A result that
+  comes later, an error, `null`, or a result the guard refuses (it drops or
+  adds too much content) sends the raw text.
+- A later segment's commit waits for an earlier one still being cleaned, so
+  commits leave in the order the segments finished. `done` waits for them, so
+  Done takes at most `formatMs` longer.
+- Empty segments and interim text are never cleaned.
 
 ## Client journal and resume
 

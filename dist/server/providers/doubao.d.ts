@@ -17,6 +17,7 @@ export interface DoubaoAsrOptions {
     resourceId?: string;
     endpoint?: string;
     hotwords?: readonly string[];
+    smooth?: boolean;
     connectMs?: number;
     finishMs?: number;
 }

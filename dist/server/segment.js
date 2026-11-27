@@ -155,8 +155,9 @@ export class Segment extends EventEmitter {
         if (this.settled)
             return;
         const endFrame = this.endFrame;
+        const provider = this.attempt >= 0 ? this.options.providers[this.attempt]?.name : undefined;
         this.close();
-        this.emit('commit', { text: text.trim(), endFrame, heard: this.heard });
+        this.emit('commit', { text: text.trim(), endFrame, heard: this.heard, provider });
     }
     disconnect() {
         clearTimeout(this.timer);

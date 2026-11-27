@@ -105,6 +105,29 @@ describe('Doubao provider', () => {
     expect(transcripts).toEqual([{ text: '做一个', final: false }, { text: '做一个短片。', final: true }]);
   });
 
+  it('smooth asks Doubao to remove fillers and repeats (enable_ddc); it is off by default', async () => {
+    const requests: unknown[] = [];
+    const endpoint = await serve((ws) => {
+      ws.on('message', (data: Buffer) => {
+        const frame = unpack(data);
+        if (frame.type === 0b0001) requests.push(JSON.parse(frame.payload.toString()));
+      });
+    });
+    for (const smooth of [true, false]) {
+      const provider = doubao({ apiKey: 'test-key', endpoint, smooth }).create({ userId: 'u', deviceId: '1234', languages: ['zh-CN'] });
+      provider.on('error', () => undefined);
+      await new Promise<void>((resolve) => {
+        provider.on('ready', resolve);
+        provider.start();
+      });
+      const count = requests.length;
+      for (let n = 0; n < 100 && requests.length === count; n++) await new Promise((resolve) => setTimeout(resolve, 10));
+      provider.close();
+    }
+    expect((requests[0] as { request: Record<string, unknown> }).request.enable_ddc).toBe(true);
+    expect((requests[1] as { request: Record<string, unknown> }).request).not.toHaveProperty('enable_ddc');
+  });
+
   it('an error frame fails the provider so the relay moves on', async () => {
     const endpoint = await serve((ws) => {
       ws.on('message', () => ws.send(errorFrame(55000031, 'busy')));

@@ -138,6 +138,8 @@ export function createVoiceRelay(options) {
                     close: end,
                     maxMs,
                     ...(options.timing ? { timing: options.timing } : {}),
+                    ...(options.format ? { format: options.format } : {}),
+                    ...(options.formatMs !== undefined ? { formatMs: options.formatMs } : {}),
                 });
             })();
         });

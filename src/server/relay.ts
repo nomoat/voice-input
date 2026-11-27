@@ -3,6 +3,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { MAX_SESSION_MS, parseClientMessage, type ServerEvent, type StartMessage } from '../protocol.js';
+import type { SegmentFormatter } from './format.js';
 import { RelaySession, type RelaySessionStats, type SegmentTiming } from './session.js';
 import type { ProviderSpec } from './providers/types.js';
 import type { SpeechChoice } from './region.js';
@@ -37,6 +38,8 @@ export interface VoiceRelayOptions {
   maxMs?: number;
   timing?: Partial<SegmentTiming>;
   metric?: (metric: VoiceMetric) => void;
+  format?: SegmentFormatter;
+  formatMs?: number;
 }
 
 export interface VoiceRelay {
@@ -170,6 +173,8 @@ export function createVoiceRelay(options: VoiceRelayOptions): VoiceRelay {
           close: end,
           maxMs,
           ...(options.timing ? { timing: options.timing } : {}),
+          ...(options.format ? { format: options.format } : {}),
+          ...(options.formatMs !== undefined ? { formatMs: options.formatMs } : {}),
         });
       })();
     });

@@ -77,6 +77,10 @@ Hosts that start a hold from a long press on an empty text field (Impo) wait
 
 - The final text goes in at the cursor and replaces the selection, as one
   undo step (`insertText` joins it with the text around it).
+- A relay with segment clean-up (PROTOCOL.md) has already fixed punctuation,
+  fillers and self-corrections in the committed text; the panel shows the
+  cleaned text when each segment commits. Done can wait up to 1.2 s for the
+  last segment.
 - Hosts with `tidy` (long-form documents) send texts of 80 characters or more
   to the tidy endpoint first. The tidied text goes in; the raw text stays in
   the journal. If tidy fails, is refused by the guard or takes over 30 s, the

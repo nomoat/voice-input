@@ -1,6 +1,8 @@
 import { FRAME_BYTES, FRAME_MS, MAX_SESSION_MS, type ServerEvent, type StartMessage } from '../protocol.js';
+import { DEFAULT_FORMAT_MS, type SegmentFormatter } from './format.js';
 import { frameRms, PauseDetector } from './pause.js';
 import { Segment } from './segment.js';
+import { acceptTidy } from './tidy.js';
 import type { ProviderContext, ProviderSpec } from './providers/types.js';
 
 export interface SegmentTiming {
@@ -11,6 +13,13 @@ export interface SegmentTiming {
 
 export const DEFAULT_TIMING: SegmentTiming = { minMs: 20_000, maxMs: 60_000, idleCutMs: 1_500 };
 
+export interface FormatStats {
+  used: number;
+  skipped: number;
+  fallback: number;
+  maxMs: number;
+}
+
 export interface RelaySessionStats {
   frames: number;
   segments: number;
@@ -18,6 +27,7 @@ export interface RelaySessionStats {
   providers: string[];
   outcome: 'done' | 'cancelled' | 'error' | 'closed';
   error?: string;
+  format?: FormatStats;
 }
 
 export interface RelaySessionOptions {
@@ -29,6 +39,8 @@ export interface RelaySessionOptions {
   maxMs?: number;
   timing?: Partial<SegmentTiming>;
   maxOpenSegments?: number;
+  format?: SegmentFormatter;
+  formatMs?: number;
 }
 
 export class RelaySession {
@@ -45,6 +57,9 @@ export class RelaySession {
   private ackHeld = false;
   private lastAckFrame = -1;
   private idleTimer: NodeJS.Timeout | undefined;
+  private sending: Promise<void> = Promise.resolve();
+  private unsent = 0;
+  private readonly formatting = new Set<AbortController>();
   readonly stats: RelaySessionStats = { frames: 0, segments: 0, failovers: 0, providers: [], outcome: 'closed' };
 
   constructor(private readonly options: RelaySessionOptions) {
@@ -53,6 +68,7 @@ export class RelaySession {
     this.timing = { ...DEFAULT_TIMING, ...options.timing };
     this.maxMs = options.maxMs ?? MAX_SESSION_MS;
     this.maxOpen = options.maxOpenSegments ?? 4;
+    if (options.format) this.stats.format = { used: 0, skipped: 0, fallback: 0, maxMs: 0 };
     options.send({ type: 'ready', maxMs: this.maxMs });
   }
 
@@ -95,6 +111,7 @@ export class RelaySession {
     if (this.closed) return;
     this.closed = true;
     clearTimeout(this.idleTimer);
+    for (const controller of [...this.formatting]) controller.abort();
     for (const segment of this.open.values()) segment.close();
     this.open.clear();
     this.current = undefined;
@@ -118,15 +135,71 @@ export class RelaySession {
     segment.on('interim', (text: string) => {
       if (!this.closed) this.options.send({ type: 'interim', seg, text });
     });
-    segment.on('commit', ({ text, endFrame }: { text: string; endFrame: number }) => {
+    segment.on('commit', ({ text, endFrame, provider }: { text: string; endFrame: number; provider?: string }) => {
       if (this.closed) return;
       this.open.delete(seg);
-      this.options.send({ type: 'commit', seg, text, startMs: segment.startFrame * FRAME_MS, endMs: endFrame * FRAME_MS });
+      const event = { type: 'commit', seg, text, startMs: segment.startFrame * FRAME_MS, endMs: endFrame * FRAME_MS } as const;
+      if (!this.unsent && (!this.options.format || !text)) {
+        this.options.send(event);
+      } else {
+        const cleaned = this.clean(text, provider ?? '');
+        this.unsent++;
+        this.sending = this.sending
+          .then(async () => {
+            const final = await cleaned;
+            if (!this.closed) this.options.send({ ...event, text: final });
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            this.unsent--;
+            this.checkDone();
+          });
+      }
       if (this.ackHeld) this.ack(true);
       this.checkDone();
     });
     segment.on('failed', () => this.fail('providers_unavailable', true));
     return segment;
+  }
+
+  private clean(text: string, provider: string): Promise<string> {
+    const format = this.options.format;
+    const stats = this.stats.format;
+    if (!format || !stats || !text) return Promise.resolve(text);
+    const controller = new AbortController();
+    this.formatting.add(controller);
+    const began = Date.now();
+    return new Promise<string>((resolve) => {
+      let settled = false;
+      const settle = (out: string, kind: 'used' | 'skipped' | 'fallback') => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.formatting.delete(controller);
+        stats[kind]++;
+        stats.maxMs = Math.max(stats.maxMs, Date.now() - began);
+        resolve(out);
+      };
+      const timer = setTimeout(() => controller.abort(), this.options.formatMs ?? DEFAULT_FORMAT_MS);
+      controller.signal.addEventListener('abort', () => settle(text, 'fallback'), { once: true });
+      let pending: Promise<string | null>;
+      try {
+        pending = format(text, { provider, languages: this.options.context.languages, signal: controller.signal });
+      } catch (error) {
+        pending = Promise.reject(error);
+      }
+      pending.then(
+        (out) => {
+          if (out === null) {
+            settle(text, 'skipped');
+            return;
+          }
+          const accepted = acceptTidy(text, out);
+          settle(accepted ?? text, accepted ? 'used' : 'fallback');
+        },
+        () => settle(text, 'fallback'),
+      );
+    });
   }
 
   private cut(): void {
@@ -155,7 +228,7 @@ export class RelaySession {
   }
 
   private checkDone(): void {
-    if (this.closed || !this.finishing || this.open.size) return;
+    if (this.closed || !this.finishing || this.open.size || this.unsent) return;
     this.options.send({ type: 'done', nextSeg: this.nextSeg });
     this.stats.outcome = 'done';
     this.shutdown();
