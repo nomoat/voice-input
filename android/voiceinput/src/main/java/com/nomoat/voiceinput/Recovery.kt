@@ -30,7 +30,7 @@ suspend fun listDictations(store: VoiceStore, target: String? = null, now: Long 
         } catch (_: Exception) {
             continue
         }
-        if (summary == null || expired(summary, now)) {
+        if (summary == null || expired(summary, now) || finishedEmpty(summary)) {
             try {
                 store.remove(session)
             } catch (e: CancellationException) {
@@ -71,6 +71,10 @@ suspend fun listDictations(store: VoiceStore, target: String? = null, now: Long 
     }
     return out.sortedByDescending { it.at }
 }
+
+internal fun finishedEmpty(summary: JournalSummary): Boolean =
+    summary.completedAt != null && summary.insertedAt == null && summary.discardedAt == null &&
+        summary.text.isBlank() && summary.tidy.isNullOrBlank()
 
 suspend fun markDiscarded(store: VoiceStore, session: String, now: Long = System.currentTimeMillis()) {
     store.append(session, JournalRecord.Discarded(now))

@@ -191,6 +191,24 @@ class VoiceInputControllerTest {
     }
 
     @Test
+    fun aSilentHoldShowsTheEmptyNoticeAndLeavesNothingToRecover() = runTest {
+        val rig = Rig(this)
+        rig.controller.begin()
+        runCurrent()
+        rig.controller.setMode(VoiceMode.Hold)
+        rig.mic.frames(5)
+        rig.controller.finish()
+        rig.sockets.last.open()
+        rig.sockets.last.server("""{"type":"ready","maxMs":1200000}""")
+        rig.sockets.last.server("""{"type":"done","nextSeg":0}""")
+        runCurrent()
+        assertEquals(VoiceNotice.Empty, rig.controller.view.value.notice)
+        assertTrue(rig.texts.isEmpty())
+        assertTrue(rig.store.journals.isEmpty())
+        assertTrue(recoverableDictations(rig.store, "doc").isEmpty())
+    }
+
+    @Test
     fun aRefusedInsertKeepsTheDictationForRecovery() = runTest {
         val rig = Rig(this, refuse = true)
         rig.controller.begin()

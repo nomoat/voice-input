@@ -471,8 +471,8 @@ class VoiceSession(private val options: VoiceSessionOptions) {
         clearTimers()
         closeSocket()
         val at = now()
-        write { it.append(id, JournalRecord.Complete(at)) }
         val text = committedText(committed)
+        if (text.isBlank()) write { it.remove(id) } else write { it.append(id, JournalRecord.Complete(at)) }
         update { it.copy(phase = VoicePhase.Done, connection = VoiceConnection.Online, committed = text, interim = "", level = 0f) }
         settled.complete(VoiceResult(id, text))
     }

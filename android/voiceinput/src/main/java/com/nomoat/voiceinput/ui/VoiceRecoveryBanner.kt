@@ -50,8 +50,11 @@ import kotlinx.coroutines.withContext
 suspend fun recoverableDictations(store: VoiceStore, target: String, exclude: String? = null): List<StoredDictation> =
     listDictations(store, target).filter {
         it.session != exclude &&
-            (it.status == DictationStatus.Unfinished || it.status == DictationStatus.Complete) &&
-            (it.text.isNotEmpty() || it.durationMs > 0)
+            when (it.status) {
+                DictationStatus.Unfinished -> it.text.isNotBlank() || it.durationMs > 0
+                DictationStatus.Complete -> it.text.isNotBlank() || !it.tidy.isNullOrBlank()
+                DictationStatus.Inserted, DictationStatus.Discarded -> false
+            }
     }
 
 fun dictationMinutes(ms: Long): Int = maxOf(1L, (ms / 60_000.0).roundToLong()).toInt()
@@ -113,18 +116,17 @@ fun VoiceRecoveryBanner(
                     } ?: return@launch
                     text = result.text
                 }
+                if (text.isBlank()) return@launch
                 withContext(NonCancellable) {
-                    if (text.isNotEmpty()) {
-                        latestText(
-                            text,
-                            VoiceTextInfo(
-                                raw = item.text.ifEmpty { text },
-                                tidied = item.tidy != null,
-                                session = item.session,
-                                mode = VoiceMode.Restore,
-                            ),
-                        )
-                    }
+                    latestText(
+                        text,
+                        VoiceTextInfo(
+                            raw = item.text.ifEmpty { text },
+                            tidied = item.tidy != null,
+                            session = item.session,
+                            mode = VoiceMode.Restore,
+                        ),
+                    )
                     markInserted(actualStore, item.session)
                 }
             } catch (e: CancellationException) {

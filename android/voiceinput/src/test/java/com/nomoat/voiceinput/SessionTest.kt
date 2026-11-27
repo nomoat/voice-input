@@ -181,6 +181,28 @@ class SessionTest {
     }
 
     @Test
+    fun aSessionThatEndsWithoutWordsLeavesNothingToRecover() = runTest {
+        val store = MemoryVoiceStore()
+        val sockets = FakeSockets()
+        val mic = FakeMicrophone()
+        val s = session(store, sockets, mic)
+        s.start(VoiceMode.Hold)
+        runCurrent()
+        mic.frames(5)
+        s.finish()
+        sockets.last.open()
+        sockets.last.server(ready)
+        sockets.last.server(commit(0, " ", 0, 500))
+        sockets.last.server("""{"type":"done","nextSeg":1}""")
+        assertTrue(s.result.await()?.text?.isBlank() == true)
+        runCurrent()
+        s.flushed()
+        assertTrue(store.sessions().isEmpty())
+        assertTrue(store.frames.isEmpty())
+        assertTrue(listDictations(store).isEmpty())
+    }
+
+    @Test
     fun backoffGrowsAndResetsAfterReady() = runTest {
         val sockets = FakeSockets()
         val mic = FakeMicrophone()

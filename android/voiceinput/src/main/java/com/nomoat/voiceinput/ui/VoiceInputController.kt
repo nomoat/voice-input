@@ -241,7 +241,7 @@ class VoiceInputController(
             }
             return
         }
-        if (result.text.isEmpty()) {
+        if (result.text.isBlank()) {
             showNotice(VoiceNotice.Empty, EMPTY_NOTICE_MS)
             return
         }
