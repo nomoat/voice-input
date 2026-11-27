@@ -146,12 +146,20 @@ public final class VoiceInputController {
 
     static func recoverable(_ all: [StoredDictation], live: String?) -> [StoredDictation] {
         all.filter { item in
-            guard item.status == .unfinished || item.status == .complete else { return false }
-            guard !item.text.isEmpty || item.durationMs > 0 else { return false }
+            let hasText = !Self.isBlank(item.text)
+            switch item.status {
+            case .unfinished: guard hasText || item.durationMs > 0 else { return false }
+            case .complete: guard hasText || !Self.isBlank(item.tidy) else { return false }
+            case .inserted, .discarded: return false
+            }
             if item.session == live { return false }
             if let running = VoiceSession.running(item.session), running.state.phase != .pending { return false }
             return true
         }
+    }
+
+    static func isBlank(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
     }
 
     public var isDelivering: Bool { delivering || view.tidying }
@@ -257,7 +265,7 @@ public final class VoiceInputController {
             }
             return
         }
-        if result.text.isEmpty {
+        if Self.isBlank(result.text) {
             showNotice(.empty, autoCloseMs: 2500)
             return
         }

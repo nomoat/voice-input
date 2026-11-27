@@ -207,6 +207,53 @@ struct SessionTests {
         #expect(rig.sockets.isEmpty)
     }
 
+    @Test func aSilentHoldLeavesNothingToRecover() async throws {
+        let rig = Rig()
+        let session = VoiceSession(options: rig.options())
+        await session.start(mode: .hold)
+        await rig.settle(session)
+        rig.socket.onOpen?()
+        rig.socket.server(.ready(maxMs: 1_200_000))
+        rig.frames(30, amplitude: 0)
+        session.finish()
+        rig.socket.server(.done(nextSeg: 0))
+        #expect(await session.result?.text == "")
+        await session.flushed()
+        #expect(await rig.store.sessions().isEmpty)
+        #expect(await rig.store.frameCount(session.id) == 0)
+        #expect(await listDictations(rig.store, now: rig.clock.now()).isEmpty)
+    }
+
+    @Test func aHoldWithOnlyBlankCommitsLeavesNothingToRecover() async throws {
+        let rig = Rig()
+        let session = VoiceSession(options: rig.options())
+        await session.start(mode: .hold)
+        await rig.settle(session)
+        rig.socket.onOpen?()
+        rig.socket.server(.ready(maxMs: 1_200_000))
+        rig.frames(20)
+        session.finish()
+        rig.socket.server(.commit(seg: 0, text: " ", startMs: 0, endMs: 1000))
+        rig.socket.server(.commit(seg: 1, text: "", startMs: 1000, endMs: 2000))
+        rig.socket.server(.done(nextSeg: 2))
+        #expect(await session.result?.text.trimmingCharacters(in: .whitespacesAndNewlines) == "")
+        await session.flushed()
+        #expect(await rig.store.sessions().isEmpty)
+    }
+
+    @Test func restoringAnUnfinishedSilentDictationRemovesIt() async throws {
+        let rig = Rig()
+        let id = "abcdef12-0000-4000-8000-000000000002"
+        await rig.store.append(id, .start(session: id, target: "t", surface: nil, languages: ["en"], at: 1))
+        await rig.store.append(id, .commit(CommittedSegment(seg: 0, text: "", startMs: 0, endMs: 500)))
+        #expect(await listDictations(rig.store, now: 2).map(\.status) == [.unfinished])
+        let restored = try #require(await VoiceSession.restore(id, options: rig.options()))
+        #expect(await restored.result?.text == "")
+        await restored.flushed()
+        #expect(rig.sockets.isEmpty)
+        #expect(await rig.store.sessions().isEmpty)
+    }
+
     @Test func markInsertedDropsFramesAndKeepsTheRecord() async throws {
         let rig = Rig()
         let session = VoiceSession(options: rig.options())

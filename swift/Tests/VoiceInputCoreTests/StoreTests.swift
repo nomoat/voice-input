@@ -86,6 +86,7 @@ struct FileStoreTests {
         try await store.append("aaaaaaaa-1", .commit(CommittedSegment(seg: 0, text: "hello", startMs: 0, endMs: 900)))
         try await store.putFrames("aaaaaaaa-1", first: 9, [frame(1), frame(2)])
         try await store.append("bbbbbbbb-2", .start(session: "bbbbbbbb-2", target: "doc:2", surface: nil, languages: [], at: now - 500))
+        try await store.append("bbbbbbbb-2", .commit(CommittedSegment(seg: 0, text: "two", startMs: 0, endMs: 400)))
         try await store.append("bbbbbbbb-2", .complete(at: now - 400))
         try await store.append("cccccccc-3", .start(session: "cccccccc-3", target: "doc:1", surface: nil, languages: [], at: now - VoiceJournal.abandonedKeepMs - 1))
         let doc1 = await listDictations(store, target: "doc:1", now: now)
@@ -99,6 +100,55 @@ struct FileStoreTests {
         try await markDiscarded(store, session: "aaaaaaaa-1", now: now)
         #expect(try await store.frameEnd("aaaaaaaa-1") == 0)
         #expect(await listDictations(store, target: "doc:1", now: now).first?.status == .discarded)
+    }
+
+    private func seed(_ store: FileVoiceStore, _ session: String, _ records: [JournalRecord], frames: Int = 0, at: Int) async throws {
+        try await store.append(session, .start(session: session, target: "doc:1", surface: nil, languages: ["zh-CN"], at: at))
+        for record in records { try await store.append(session, record) }
+        if frames > 0 { try await store.putFrames(session, first: 0, (0..<frames).map { frame(Int16($0)) }) }
+    }
+
+    @Test func aFinishedDictationWithNoTextIsRemovedWithItsAudio() async throws {
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = 1_700_000_000_000
+        try await seed(store, "silent-01", [
+            .commit(CommittedSegment(seg: 0, text: "", startMs: 0, endMs: 3000)),
+            .finish(endMs: 3000, at: now - 900), .complete(at: now - 800),
+        ], frames: 150, at: now - 1000)
+        try await seed(store, "nothing-02", [.finish(endMs: 1200, at: now - 900), .complete(at: now - 800)], frames: 60, at: now - 1000)
+        try await seed(store, "blanks-03", [
+            .commit(CommittedSegment(seg: 0, text: "  ", startMs: 0, endMs: 2000)),
+            .commit(CommittedSegment(seg: 1, text: "\n", startMs: 2000, endMs: 4000)),
+            .finish(endMs: 4000, at: now - 900), .complete(at: now - 800),
+        ], at: now - 1000)
+        #expect(await listDictations(store, target: "doc:1", now: now).isEmpty)
+        #expect(try await store.sessions().isEmpty)
+        for session in ["silent-01", "nothing-02", "blanks-03"] {
+            #expect(try await store.frameEnd(session) == 0)
+        }
+    }
+
+    @Test func dictationsWithTextOrUnsentAudioAreStillListed() async throws {
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = 1_700_000_000_000
+        try await seed(store, "keeps-text-01", [
+            .commit(CommittedSegment(seg: 0, text: "做一个短片", startMs: 0, endMs: 3000)),
+            .finish(endMs: 3000, at: now - 900), .complete(at: now - 800),
+        ], at: now - 1000)
+        try await seed(store, "tidied-02", [
+            .commit(CommittedSegment(seg: 0, text: " ", startMs: 0, endMs: 1000)),
+            .complete(at: now - 700), .tidy(markdown: "Hello"),
+        ], at: now - 1000)
+        try await seed(store, "words-003", [.commit(CommittedSegment(seg: 0, text: "one", startMs: 0, endMs: 1000))], frames: 20, at: now - 600)
+        try await seed(store, "audio-004", [], frames: 10, at: now - 500)
+        try await seed(store, "inserted-05", [.complete(at: now - 450), .inserted(at: now - 400)], at: now - 450)
+        let all = await listDictations(store, target: "doc:1", now: now)
+        #expect(all.map(\.session) == ["inserted-05", "audio-004", "words-003", "tidied-02", "keeps-text-01"])
+        #expect(all.map(\.status) == [.inserted, .unfinished, .unfinished, .complete, .complete])
+        #expect(all.first { $0.session == "audio-004" }?.durationMs == 1000)
+        #expect(all.first { $0.session == "tidied-02" }?.tidy == "Hello")
     }
 
     @Test func protocolMessagesMatchTheWire() throws {

@@ -133,10 +133,9 @@ public struct VoiceRecoveryBanner: View {
             guard let result = await session?.result else { return }
             text = result.text
         }
+        guard !VoiceInputController.isBlank(text) else { return }
         do {
-            if !text.isEmpty {
-                try await onText(text, VoiceTextInfo(raw: item.text.isEmpty ? text : item.text, tidied: item.tidy != nil, session: item.session, mode: .restore))
-            }
+            try await onText(text, VoiceTextInfo(raw: item.text.isEmpty ? text : item.text, tidied: item.tidy != nil, session: item.session, mode: .restore))
             try await markInserted(store, session: item.session)
         } catch {
             return

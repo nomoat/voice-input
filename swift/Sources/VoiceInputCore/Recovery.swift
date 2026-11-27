@@ -31,6 +31,10 @@ public func listDictations(_ store: any VoiceStore, target: String? = nil, now: 
             try? await store.remove(session)
             continue
         }
+        if summary.completedAt != nil, summary.insertedAt == nil, summary.discardedAt == nil, isBlank(summary.text), isBlank(summary.tidy) {
+            try? await store.remove(session)
+            continue
+        }
         if let target, summary.target != target { continue }
         let frames = (try? await store.frameEnd(session)) ?? 0
         let durationMs = max(summary.finishEndMs ?? 0, summary.contiguousEndMs, frames * VoiceProtocol.frameMs)
@@ -45,6 +49,10 @@ public func listDictations(_ store: any VoiceStore, target: String? = nil, now: 
         ))
     }
     return out.enumerated().sorted { $0.element.at != $1.element.at ? $0.element.at > $1.element.at : $0.offset < $1.offset }.map(\.element)
+}
+
+private func isBlank(_ text: String?) -> Bool {
+    text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
 }
 
 public func markDiscarded(_ store: any VoiceStore, session: String, now: Int = VoiceTime.now()) async throws {

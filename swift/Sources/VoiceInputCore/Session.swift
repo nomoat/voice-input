@@ -568,9 +568,13 @@ public final class VoiceSession {
         guard state.phase != .done else { return }
         clearTimers()
         closeSocket()
-        let record = JournalRecord.complete(at: clock.now())
-        write { store, id in try await store.append(id, record) }
         let text = VoiceJournal.committedText(committed)
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            write { store, id in try await store.remove(id) }
+        } else {
+            let record = JournalRecord.complete(at: clock.now())
+            write { store, id in try await store.append(id, record) }
+        }
         update {
             $0.phase = .done
             $0.connection = .online
