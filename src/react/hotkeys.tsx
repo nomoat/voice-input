@@ -29,10 +29,16 @@ export function focusTakesKeys(element: Element | null): boolean {
   }
 }
 
-function blockedByDialog(scope: HTMLElement | null | undefined): boolean {
+function dialogShown(dialog: Element): boolean {
+  if (dialog.closest('dialog:not([open])')) return false;
+  return dialog.getClientRects().length > 0;
+}
+
+export function voiceKeysBlockedByDialog(scope?: HTMLElement | null): boolean {
   const dialogs = document.querySelectorAll('[aria-modal="true"], dialog[open]');
   for (const dialog of dialogs) {
-    if (!scope || !dialog.contains(scope)) return true;
+    if (scope && dialog.contains(scope)) continue;
+    if (dialogShown(dialog)) return true;
   }
   return false;
 }
@@ -57,7 +63,7 @@ export function useVoiceHotkeys(options: VoiceHotkeysOptions): void {
       if (focusTakesKeys(document.activeElement)) return false;
       const scope = latest.current.scope?.current;
       if (scope && (!scope.isConnected || scope.getClientRects().length === 0)) return false;
-      return !blockedByDialog(scope);
+      return !voiceKeysBlockedByDialog(scope);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (!mine()) return;
